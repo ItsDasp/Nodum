@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS contracts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    module_id UUID NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    version VARCHAR(50) NOT NULL DEFAULT '1.0.0',
+    status VARCHAR(50) NOT NULL DEFAULT 'DRAFT',
+    schema TEXT,
+    examples TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
