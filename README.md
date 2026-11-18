@@ -53,7 +53,7 @@ nodum/
 ### Option 1: Full Stack with Docker Compose
 
 ```bash
-# Prepare local credentials once. Keep .env private and change the example values.
+# Prepare local credentials once. Keep .env private and generate every required secret.
 cp .env.example .env
 
 # Build and run all services (postgres, back, web)
@@ -65,8 +65,11 @@ docker compose logs -f
 # Stop all services
 docker compose down
 
-# Stop and remove volumes
-docker compose down -v
+# Stop services without removing data
+docker compose down
+
+# Only if you explicitly intend to delete local data (not needed for normal tests)
+# docker compose down -v
 ```
 
 Access:
@@ -77,6 +80,7 @@ Access:
 Kafka is optional. Start its local broker with `docker compose --profile messaging up -d kafka`. Configure a module with `kafka:9092` when the backend runs in Compose, or `localhost:9094` when the backend runs directly on the host.
 
 Gateway routes are disabled until an operator allowlists target hosts. Set `NODUM_GATEWAY_ALLOWED_HOSTS` in the environment used by Compose (for example, the root `.env` file) to the exact service hostnames the Gateway may reach. Each route request is capped at 1 MiB and 8 seconds, redirects are not followed, and the module has a 120 requests per minute in-memory limit. The runtime route requires a panel JWT unless that module configuration explicitly sets `public: true`.
+By default, upstream hostnames that resolve to loopback, link-local, private, or multicast addresses are rejected to reduce SSRF risk. For a deliberately internal upstream on a trusted network, set `NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES=true` as an explicit operator decision in addition to the host allowlist.
 
 ### Option 2: Local Development
 
@@ -114,16 +118,58 @@ Nodum is an administrative platform. Admin credentials must be configured via en
 NODUM_ADMIN_USERNAME=admin          # Admin username
 NODUM_ADMIN_PASSWORD=your_password   # Admin password (required)
 NODUM_ADMIN_EMAIL=admin@nodum.local  # Admin email
-SPRING_DATASOURCE_PASSWORD=...       # Password for the platform PostgreSQL database
+POSTGRES_PASSWORD=...               # Password for the platform PostgreSQL database
 JWT_SECRET=...                       # Random secret of at least 64 bytes for HS512
+```
+
+Compose maps `POSTGRES_PASSWORD` to the backend's `SPRING_DATASOURCE_PASSWORD`; do not maintain a second datasource password in `.env`.
+
+Generate local values without putting them in shell history or logs, then write them only to the ignored `.env` file:
+
+```bash
+openssl rand -hex 32  # JWT_SECRET: use the output as a 64-byte hexadecimal secret
+openssl rand -hex 24  # NODUM_ADMIN_PASSWORD: use the output as the local admin password
 ```
 
 **Important:**
 - The admin user is created on first startup only; changing these environment variables later does not rotate the saved password
 - Password is stored as a BCrypt hash in the database
-- `JWT_SECRET` must be a random value of at least 64 bytes for HS512
-- The committed `.env.example` contains local development values; replace them before sharing the environment
+- `JWT_SECRET` must be random, non-placeholder, and at least 64 bytes for HS512; startup fails otherwise
+- `POSTGRES_PASSWORD` must match the password that initialized the existing PostgreSQL volume; Nodum never changes it automatically
 - Docker Compose reads the root `.env` file; local `mvn spring-boot:run` requires the variables in the current shell
+
+To verify the existing PostgreSQL credentials, use the same values in a local shell without printing them and run a harmless connection check. A successful backend startup and Flyway migration confirm the configured password; a failure must be investigated before changing the volume. Never use `docker compose down -v` for this check.
+
+### Password reset
+
+Nodum does not overwrite an existing administrator password during startup. An authenticated administrator can change it with:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/password \
+	-H "Authorization: Bearer <current-jwt>" \
+	-H "Content-Type: application/json" \
+	-d '{"currentPassword":"<current-password>","newPassword":"<new-password>"}'
+```
+
+The current password is required and the new password is stored as BCrypt. If access is lost, generate a BCrypt hash through an offline administrative procedure and update only that user's `password_hash` row inside a transaction; do not delete the database or volume. Verify the PostgreSQL credentials separately with the operator who created the volume before changing `.env`.
+
+For local recovery when the previous password is unavailable, use the explicit administrative tool. It is not exposed over HTTP and is not started by Spring Boot:
+
+```bash
+set -a
+. ../.env
+set +a
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/nodum
+export SPRING_DATASOURCE_USERNAME=nodum
+export SPRING_DATASOURCE_PASSWORD="$POSTGRES_PASSWORD"
+export NODUM_ADMIN_USERNAME=admin
+
+./mvnw -q dependency:build-classpath -Dmdep.outputFile=/tmp/nodum-back.classpath
+java -cp "target/classes:$(cat /tmp/nodum-back.classpath)" \
+	com.nodum.identity.AdminPasswordResetTool
+```
+
+Run it from `back` in an interactive terminal. It prompts twice without echoing the password, uses BCrypt, updates only the selected administrator's `password_hash` and `updated_at`, and commits only when exactly one row is updated. It does not alter `POSTGRES_PASSWORD`, users, projects, tables, or volumes. Afterward, obtain a JWT through `/api/v1/auth/login` and use it to call `/api/v1/projects`.
 
 ### Frontend Authentication
 

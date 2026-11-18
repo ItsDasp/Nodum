@@ -22,11 +22,12 @@ spring:
 
 nodum:
   admin:
-    username: ${NODUM_ADMIN_USERNAME:admin}
-    password: ${NODUM_ADMIN_PASSWORD:}
-    email: ${NODUM_ADMIN_EMAIL:admin@nodum.local}
+    username: ${NODUM_ADMIN_USERNAME}
+    password: ${NODUM_ADMIN_PASSWORD}
+    email: ${NODUM_ADMIN_EMAIL}
   gateway:
     allowed-hosts: ${NODUM_GATEWAY_ALLOWED_HOSTS:}
+    allow-private-addresses: ${NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES:false}
 
 jwt:
   secret: ${JWT_SECRET}

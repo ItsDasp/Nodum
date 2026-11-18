@@ -9,7 +9,7 @@ import {
 
 const configurationExamples: Record<string, string> = {
   'kafka-messaging': JSON.stringify({ bootstrapServers: 'kafka:9092', topic: 'events', groupId: 'nodum-events', consume: false }, null, 2),
-  'http-gateway': JSON.stringify({ public: false, routes: [{ pathPrefix: '/api', upstreamUrl: 'http://api-service:8080' }] }, null, 2),
+  'http-gateway': JSON.stringify({ public: false, routes: [{ pathPrefix: '/posts', upstreamUrl: 'https://jsonplaceholder.typicode.com' }] }, null, 2),
 };
 
 export function Modules() {
@@ -101,7 +101,7 @@ export function Modules() {
         <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {executable && <button className="btn" disabled={lifecycle.isPending || module.lifecycleState === 'RUNNING'} onClick={() => lifecycle.mutate({ module, action: 'start' })}>Iniciar</button>}
           {executable && <button className="btn" disabled={lifecycle.isPending || !['RUNNING', 'ERROR'].includes(module.lifecycleState)} onClick={() => lifecycle.mutate({ module, action: 'stop' })}>Detener</button>}
-          {module.lifecycleState === 'RUNNING' && (module.providerId === 'kafka-messaging' || module.providerId === 'http-gateway') && <button className="btn" onClick={() => { setActionModule(module); setActionName(module.providerId === 'http-gateway' ? 'proxy' : 'publish'); setActionInput(module.providerId === 'http-gateway' ? '{\n  "method": "GET",\n  "path": "/api/health"\n}' : '{\n  "key": "example",\n  "value": { "event": "created" }\n}'); setActionOutput(''); }}>Probar</button>}
+          {module.lifecycleState === 'RUNNING' && (module.providerId === 'kafka-messaging' || module.providerId === 'http-gateway') && <button className="btn" onClick={() => { setActionModule(module); setActionName(module.providerId === 'http-gateway' ? 'proxy' : 'publish'); setActionInput(module.providerId === 'http-gateway' ? '{\n  "method": "GET",\n  "path": "/posts/1"\n}' : '{\n  "key": "example",\n  "value": { "event": "created" }\n}'); setActionOutput(''); }}>Probar</button>}
           <Link className="btn" to={`/projects/${projectId}/modules/${module.id}/contracts`}>Contratos</Link>
           <button className="btn btn-danger" disabled={remove.isPending || ['RUNNING', 'STARTING', 'ERROR'].includes(module.lifecycleState)} onClick={() => { if (window.confirm(`¿Eliminar el módulo “${module.name}” y sus contratos?`)) remove.mutate(module.id); }}>Eliminar</button>
         </div>
