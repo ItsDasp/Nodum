@@ -1,0 +1,16 @@
+server:
+  port: 8081
+
+nodum:
+  gateway:
+    allowed-hosts: ${NODUM_GATEWAY_ALLOWED_HOSTS:}
+    allow-private-addresses: ${NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+module:
+  service-token: ${NODUM_MODULE_SERVICE_TOKEN:}

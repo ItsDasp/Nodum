@@ -1,6 +1,7 @@
 package com.nodum.modules.spi;
 
 import org.springframework.stereotype.Component;
+import com.nodum.modules.runtime.RemoteModuleAdapter;
 
 import java.util.Collection;
 import java.util.Comparator;
@@ -14,13 +15,22 @@ public class ModuleRegistry {
     private final Map<String, ModulePlugin> plugins;
 
     public ModuleRegistry(List<ModulePlugin> providers) {
-        this.plugins = providers.stream().collect(Collectors.toUnmodifiableMap(
-                provider -> provider.descriptor().id(),
-                Function.identity(),
-                (first, duplicate) -> {
-                    throw new IllegalStateException("Duplicate module provider: " + first.descriptor().id());
-                }
-        ));
+        Map<String, ModulePlugin> resolved = new java.util.HashMap<>();
+        for (ModulePlugin provider : providers) {
+            String id = provider.descriptor().id();
+            ModulePlugin current = resolved.get(id);
+            if (current == null) {
+                resolved.put(id, provider);
+            } else if (provider instanceof RemoteModuleAdapter remote && remote.enabled()) {
+                resolved.put(id, provider);
+            } else if (current instanceof RemoteModuleAdapter remote && !remote.enabled()
+                    && !(provider instanceof RemoteModuleAdapter)) {
+                resolved.put(id, provider);
+            } else if (!(provider instanceof RemoteModuleAdapter)) {
+                throw new IllegalStateException("Duplicate module provider: " + id);
+            }
+        }
+        this.plugins = java.util.Collections.unmodifiableMap(resolved);
     }
 
     public Collection<ModuleDescriptor> catalog() {

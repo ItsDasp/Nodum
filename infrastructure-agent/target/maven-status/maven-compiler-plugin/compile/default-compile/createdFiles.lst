@@ -1,0 +1,6 @@
+com/nodum/agent/DockerModuleAgentService$AgentOperationResult.class
+com/nodum/agent/DockerModuleAgentService.class
+com/nodum/agent/InfrastructureAgentController.class
+com/nodum/agent/SecurityConfiguration.class
+com/nodum/agent/InfrastructureAgentApplication.class
+com/nodum/agent/InfrastructureAgentController$AgentOperation.class

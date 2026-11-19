@@ -140,6 +140,92 @@ openssl rand -hex 24  # NODUM_ADMIN_PASSWORD: use the output as the local admin 
 
 To verify the existing PostgreSQL credentials, use the same values in a local shell without printing them and run a harmless connection check. A successful backend startup and Flyway migration confirm the configured password; a failure must be investigated before changing the volume. Never use `docker compose down -v` for this check.
 
+### Remote Gateway migration
+
+The Gateway can run in-process or in the `gateway-module` container. Remote mode is enabled only when `NODUM_GATEWAY_REMOTE_URL` is set in the root `.env` and `NODUM_MODULE_SERVICE_TOKEN` contains a private service token shared by the backend and Gateway service.
+
+```dotenv
+NODUM_GATEWAY_REMOTE_URL=http://gateway-module:8081
+NODUM_MODULE_SERVICE_TOKEN=<generate-a-private-service-token>
+```
+
+The token must not be stored in module configuration, logs or PostgreSQL. The legacy `GatewayModule` remains active only as fallback when no remote URL is configured.
+
+To test locally with Docker access:
+
+```bash
+docker compose --env-file .env up -d --build postgres back gateway-module
+curl -i http://localhost:8080/api/v1/health
+docker compose restart gateway-module
+curl -i http://localhost:8080/api/v1/projects
+```
+
+These container commands are intentionally not executed in this environment while Docker socket access is denied.
+
+To roll back without deleting data:
+
+```bash
+# Remove NODUM_GATEWAY_REMOTE_URL from .env or set it to an empty value
+# Restart the backend
+docker compose --env-file .env up -d --force-recreate back
+```
+
+The legacy in-process provider will be selected again, and existing module records remain unchanged.
+
+### Infrastructure Agent
+
+Nodum communicates with containers only through `infrastructure-agent`. The agent is the sole Compose service that mounts `/var/run/docker.sock`; `back` and module containers do not receive the socket.
+
+The agent accepts only `create`, `start`, `stop`, `restart`, and `inspect` for the existing `http-gateway` provider and an instance UUID. It does not accept arbitrary images, commands, mounts, networks, volumes or environment variables.
+
+Generate separate private service tokens and keep them in the ignored root `.env`:
+
+```dotenv
+NODUM_INFRASTRUCTURE_AGENT_TOKEN=<private-agent-token>
+NODUM_MODULE_SERVICE_TOKEN=<private-module-token>
+NODUM_INFRASTRUCTURE_AGENT_URL=http://infrastructure-agent:8090
+NODUM_GATEWAY_REMOTE_URL=http://gateway-module:8081
+```
+
+Gateway containers are created with fixed limits: 512 MiB memory, 0.75 CPU, 128 PIDs, no privileged mode and no binds. Container IDs and operations are restricted by `nodum.provider-id` and `nodum.instance-id` labels.
+
+After Docker access is authorized, execute:
+
+```bash
+docker compose --env-file .env up -d --build postgres infrastructure-agent gateway-module back web
+curl -i http://localhost:8080/api/v1/health
+docker inspect nodum-module-http-gateway-<instance-id> \
+  --format '{{.HostConfig.Memory}} {{.HostConfig.CpuQuota}} {{.HostConfig.PidsLimit}}'
+docker restart nodum-module-http-gateway-<instance-id>
+curl -i http://localhost:8080/api/v1/projects
+```
+
+Do not remove volumes. Docker integration remains pending until `/var/run/docker.sock` is accessible to the terminal.
+
+### Remote Kafka module
+
+Kafka runs in `kafka-module` and exposes the same v1 contract as Gateway. Its provider ID remains `kafka-messaging` and version `1.0.0`; existing `publish` and `read` actions remain compatible.
+
+Configure private service and broker values in the ignored root `.env`:
+
+```dotenv
+NODUM_KAFKA_REMOTE_URL=http://kafka-module:8082
+NODUM_KAFKA_REMOTE_TOKEN=<private-kafka-service-token>
+NODUM_KAFKA_BROKERS=kafka:9092
+```
+
+Do not place passwords or tokens in module `configuration_json`. Kafka containers use 256 MiB, 0.25 CPU and 64 PIDs. The Infrastructure Agent applies a fixed image and environment; HTTP requests cannot provide Docker images, commands, mounts or volumes.
+
+After Docker access and broker configuration are available:
+
+```bash
+docker compose --env-file .env up -d --build postgres infrastructure-agent gateway-module kafka-module back web
+curl -i http://localhost:8080/api/v1/health
+curl -i http://localhost:8080/api/v1/module-catalog
+```
+
+Rollback keeps existing Java Kafka fallback behavior: remove `NODUM_KAFKA_REMOTE_URL` from `.env` and restart `back`. Existing module records are not deleted.
+
 ### Password reset
 
 Nodum does not overwrite an existing administrator password during startup. An authenticated administrator can change it with:

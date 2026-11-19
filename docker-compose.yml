@@ -44,9 +44,108 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Copy .env.example to .env and set JWT_SECRET}
       NODUM_GATEWAY_ALLOWED_HOSTS: ${NODUM_GATEWAY_ALLOWED_HOSTS:-}
       NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES: ${NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES:-false}
+      NODUM_GATEWAY_REMOTE_URL: ${NODUM_GATEWAY_REMOTE_URL:-http://gateway-module:8081}
+      NODUM_MODULE_SERVICE_TOKEN: ${NODUM_MODULE_SERVICE_TOKEN:?Copy .env.example to .env and set NODUM_MODULE_SERVICE_TOKEN}
+      NODUM_INFRASTRUCTURE_AGENT_URL: ${NODUM_INFRASTRUCTURE_AGENT_URL:-http://infrastructure-agent:8090}
+      NODUM_INFRASTRUCTURE_AGENT_TOKEN: ${NODUM_INFRASTRUCTURE_AGENT_TOKEN:?Copy .env.example to .env and set NODUM_INFRASTRUCTURE_AGENT_TOKEN}
+      NODUM_KAFKA_REMOTE_URL: ${NODUM_KAFKA_REMOTE_URL:-http://kafka-module:8082}
+      NODUM_KAFKA_REMOTE_TOKEN: ${NODUM_KAFKA_REMOTE_TOKEN:?Copy .env.example to .env and set NODUM_KAFKA_REMOTE_TOKEN}
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - nodum-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  infrastructure-agent:
+    build:
+      context: ./infrastructure-agent
+      dockerfile: Dockerfile
+    container_name: nodum-infrastructure-agent
+    restart: unless-stopped
+    expose:
+      - "8090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8090/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    environment:
+      NODUM_INFRASTRUCTURE_AGENT_TOKEN: ${NODUM_INFRASTRUCTURE_AGENT_TOKEN:?Copy .env.example to .env and set NODUM_INFRASTRUCTURE_AGENT_TOKEN}
+      NODUM_DOCKER_NETWORK: nodum-network
+      NODUM_GATEWAY_ALLOWED_HOSTS: ${NODUM_GATEWAY_ALLOWED_HOSTS:-}
+      NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES: ${NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES:-false}
+      NODUM_MODULE_SERVICE_TOKEN: ${NODUM_MODULE_SERVICE_TOKEN:?Copy .env.example to .env and set NODUM_MODULE_SERVICE_TOKEN}
+      NODUM_KAFKA_BROKERS: ${NODUM_KAFKA_BROKERS:-kafka:9092}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    mem_limit: 256m
+    cpus: 0.25
+    pids_limit: 64
+    networks:
+      - nodum-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  gateway-module:
+    image: nodum-gateway-module:1.0.0
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: nodum-gateway-module
+    restart: unless-stopped
+    expose:
+      - "8081"
+    environment:
+      NODUM_GATEWAY_ALLOWED_HOSTS: ${NODUM_GATEWAY_ALLOWED_HOSTS:-}
+      NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES: ${NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES:-false}
+      NODUM_MODULE_SERVICE_TOKEN: ${NODUM_MODULE_SERVICE_TOKEN:?Copy .env.example to .env and set NODUM_MODULE_SERVICE_TOKEN}
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 128
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8081/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - nodum-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  kafka-module:
+    image: nodum-kafka-module:1.0.0
+    build:
+      context: ./kafka-module
+      dockerfile: Dockerfile
+    container_name: nodum-kafka-module
+    restart: unless-stopped
+    expose:
+      - "8082"
+    environment:
+      NODUM_MODULE_SERVICE_TOKEN: ${NODUM_KAFKA_REMOTE_TOKEN:?Copy .env.example to .env and set NODUM_KAFKA_REMOTE_TOKEN}
+      NODUM_KAFKA_BROKERS: ${NODUM_KAFKA_BROKERS:-kafka:9092}
+    mem_limit: 256m
+    cpus: 0.25
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8082/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     networks:
       - nodum-network
     logging:
