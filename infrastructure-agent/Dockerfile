@@ -8,7 +8,6 @@ FROM eclipse-temurin:21-jre-alpine
 RUN apk add --no-cache wget && addgroup -S nodum && adduser -S -G nodum nodum
 WORKDIR /app
 COPY --from=builder /build/target/*.jar app.jar
-RUN chown -R nodum:nodum /app
-USER nodum
+RUN chown -R root:root /app
 EXPOSE 8090
 ENTRYPOINT ["java", "-jar", "app.jar"]

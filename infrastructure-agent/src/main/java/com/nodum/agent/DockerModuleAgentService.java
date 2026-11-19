@@ -31,6 +31,7 @@ public class DockerModuleAgentService {
             @Value("${NODUM_GATEWAY_ALLOWED_HOSTS:}") String allowedHosts,
             @Value("${NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES:false}") boolean allowPrivate,
             @Value("${NODUM_MODULE_SERVICE_TOKEN:}") String moduleToken,
+            @Value("${NODUM_KAFKA_REMOTE_TOKEN:}") String kafkaToken,
             @Value("${NODUM_KAFKA_BROKERS:kafka:9092}") String kafkaBrokers) {
         this.network = network;
         this.gatewayEnvironment = Map.of(
@@ -39,9 +40,11 @@ public class DockerModuleAgentService {
                 "NODUM_MODULE_SERVICE_TOKEN", moduleToken);
         this.kafkaEnvironment = Map.of(
                 "NODUM_KAFKA_BROKERS", kafkaBrokers,
-                "NODUM_MODULE_SERVICE_TOKEN", moduleToken);
+                "NODUM_MODULE_SERVICE_TOKEN", kafkaToken);
 
-        DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
+        DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
+                .withDockerHost("unix:///var/run/docker.sock")
+                .build();
         ApacheDockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
                 .dockerHost(config.getDockerHost())
                 .sslConfig(config.getSSLConfig())
@@ -94,13 +97,14 @@ public class DockerModuleAgentService {
     public synchronized AgentOperationResult stop(String providerId, String instanceId) {
         validateProviderInstance(providerId, instanceId);
         InspectContainerResponse existing = findContainer(providerId, instanceId);
-        if (existing == null) return new AgentOperationResult(false, "STOPPED", null,
-                "Container already absent");
+        if (existing == null) return new AgentOperationResult(true, "STOPPED", null,
+                "Container already stopped");
         String state = existing.getState() == null ? null : existing.getState().getStatus();
         if ("running".equalsIgnoreCase(state)) {
             docker.stopContainerCmd(existing.getId()).withTimeout(10).exec();
         }
-        return inspect(providerId, instanceId);
+        return new AgentOperationResult(true, "STOPPED", existing.getId(),
+                "Container stopped");
     }
 
     public synchronized AgentOperationResult restart(String providerId, String instanceId) {

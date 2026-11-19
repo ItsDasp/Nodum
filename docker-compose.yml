@@ -76,11 +76,13 @@ services:
       retries: 5
       start_period: 10s
     environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
       NODUM_INFRASTRUCTURE_AGENT_TOKEN: ${NODUM_INFRASTRUCTURE_AGENT_TOKEN:?Copy .env.example to .env and set NODUM_INFRASTRUCTURE_AGENT_TOKEN}
       NODUM_DOCKER_NETWORK: nodum-network
       NODUM_GATEWAY_ALLOWED_HOSTS: ${NODUM_GATEWAY_ALLOWED_HOSTS:-}
       NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES: ${NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES:-false}
       NODUM_MODULE_SERVICE_TOKEN: ${NODUM_MODULE_SERVICE_TOKEN:?Copy .env.example to .env and set NODUM_MODULE_SERVICE_TOKEN}
+      NODUM_KAFKA_REMOTE_TOKEN: ${NODUM_KAFKA_REMOTE_TOKEN:?Copy .env.example to .env and set NODUM_KAFKA_REMOTE_TOKEN}
       NODUM_KAFKA_BROKERS: ${NODUM_KAFKA_BROKERS:-kafka:9092}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -208,4 +210,5 @@ volumes:
 
 networks:
   nodum-network:
+    name: nodum-network
     driver: bridge
