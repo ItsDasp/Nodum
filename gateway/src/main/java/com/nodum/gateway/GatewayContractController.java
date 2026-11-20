@@ -165,7 +165,13 @@ public class GatewayContractController {
         String suffix = path.substring(route.pathPrefix().length());
         if (suffix.isBlank()) suffix = "/";
         if (!suffix.startsWith("/")) suffix = "/" + suffix;
-        URI target = URI.create(route.upstream().toString().replaceAll("/$", "") + suffix);
+        String upstreamBase = route.upstream().toString().replaceAll("/$", "");
+        String upstreamPath = upstreamBase.contains("://")
+                ? URI.create(upstreamBase).getRawPath().replaceAll("/$", "")
+                : "";
+        URI upstreamUri = URI.create(upstreamBase);
+        String targetPath = upstreamPath.isBlank() ? path : upstreamPath + path;
+        URI target = URI.create(upstreamUri.getScheme() + "://" + upstreamUri.getRawAuthority() + targetPath);
         HttpRequest.Builder builder = HttpRequest.newBuilder(target).timeout(Duration.ofSeconds(8));
         byte[] body = input.hasNonNull("body") ? input.get("body").toString().getBytes(StandardCharsets.UTF_8) : new byte[0];
         if (body.length > MAX_BODY_BYTES) throw new IllegalArgumentException("Request body exceeds 1 MiB.");

@@ -161,7 +161,7 @@ public class GatewayModule implements ModulePlugin {
         URI target;
         try {
             String basePath = route.upstream.getRawPath() == null ? "" : route.upstream.getRawPath().replaceAll("/$", "");
-            String rawPath = basePath + suffix;
+            String rawPath = basePath.isBlank() ? path : basePath + path;
             String decodedPath = java.net.URLDecoder.decode(rawPath.replace("+", "%2B"), StandardCharsets.UTF_8);
             for (String segment : decodedPath.split("/")) if ("..".equals(segment)) throw new IllegalArgumentException("Invalid route path");
             String rawTarget = route.upstream.getScheme() + "://" + route.upstream.getRawAuthority() + rawPath

@@ -8,7 +8,7 @@ import {
 } from '../../api/modules';
 
 const configurationExamples: Record<string, string> = {
-  'kafka-messaging': JSON.stringify({ bootstrapServers: 'kafka:9092', topic: 'events', groupId: 'nodum-events', consume: false }, null, 2),
+  'kafka-messaging': JSON.stringify({ bootstrapServers: 'kafka:9092', topic: 'events', groupId: 'nodum-events', consume: true }, null, 2),
   'http-gateway': JSON.stringify({ public: false, routes: [{ pathPrefix: '/posts', upstreamUrl: 'https://jsonplaceholder.typicode.com' }] }, null, 2),
 };
 
