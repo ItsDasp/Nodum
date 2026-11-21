@@ -6,6 +6,8 @@ interface LayoutProps { children: React.ReactNode }
 const navItems = [
   { path: '/', label: 'Inicio', glyph: '⌂' },
   { path: '/projects', label: 'Proyectos', glyph: '▧' },
+  { path: '/logs', label: 'Logs', glyph: '≋' },
+  { path: '/shell', label: 'Shell remota', glyph: '>_' },
   { path: '/testing', label: 'Pruebas de API', glyph: '⇄' },
 ];
 

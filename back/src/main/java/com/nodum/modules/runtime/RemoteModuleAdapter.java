@@ -78,7 +78,7 @@ public class RemoteModuleAdapter implements ModulePlugin {
         try {
             JsonNode configuration = objectMapper.readTree(configurationJson);
             if (infrastructureAgent.enabled()) {
-                InfrastructureAgentClient.AgentResponse container = infrastructureAgent.start(providerId, context.instanceId());
+                InfrastructureAgentClient.AgentResponse container = infrastructureAgent.start(providerId, context.instanceId(), context.projectId());
                 if (!container.success()) throw new InfrastructureAgentClient.InfrastructureAgentException(
                         container.message(), true);
             }

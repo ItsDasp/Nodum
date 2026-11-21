@@ -50,8 +50,17 @@ services:
       NODUM_INFRASTRUCTURE_AGENT_TOKEN: ${NODUM_INFRASTRUCTURE_AGENT_TOKEN:?Copy .env.example to .env and set NODUM_INFRASTRUCTURE_AGENT_TOKEN}
       NODUM_KAFKA_REMOTE_URL: ${NODUM_KAFKA_REMOTE_URL:-http://kafka-module:8082}
       NODUM_KAFKA_REMOTE_TOKEN: ${NODUM_KAFKA_REMOTE_TOKEN:?Copy .env.example to .env and set NODUM_KAFKA_REMOTE_TOKEN}
+      NODUM_KAFKA_BROKERS: ${NODUM_KAFKA_BROKERS:-kafka:9092}
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      gateway-module:
+        condition: service_healthy
+      kafka-module:
+        condition: service_healthy
+      infrastructure-agent:
         condition: service_healthy
     networks:
       - nodum-network
@@ -73,8 +82,11 @@ services:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8090/actuator/health || exit 1"]
       interval: 10s
       timeout: 3s
-      retries: 5
-      start_period: 10s
+      retries: 12
+      start_period: 90s
+    depends_on:
+      shell-image:
+        condition: service_completed_successfully
     environment:
       DOCKER_HOST: unix:///var/run/docker.sock
       NODUM_INFRASTRUCTURE_AGENT_TOKEN: ${NODUM_INFRASTRUCTURE_AGENT_TOKEN:?Copy .env.example to .env and set NODUM_INFRASTRUCTURE_AGENT_TOKEN}
@@ -117,8 +129,8 @@ services:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8081/actuator/health || exit 1"]
       interval: 10s
       timeout: 3s
-      retries: 5
-      start_period: 10s
+      retries: 12
+      start_period: 90s
     networks:
       - nodum-network
     logging:
@@ -176,9 +188,19 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  shell-image:
+    image: nodum-shell-module:1.0.0
+    build:
+      context: ./shell-module
+      dockerfile: Dockerfile
+    command: ["true"]
+    restart: "no"
+    networks:
+      - nodum-network
+
   kafka:
     image: apache/kafka:3.8.1
-    profiles: ["messaging"]
+    restart: unless-stopped
     ports:
       - "9094:9094"
     environment:
@@ -201,6 +223,12 @@ services:
       - kafka_data:/var/lib/kafka/data
     networks:
       - nodum-network
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server 127.0.0.1:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
 volumes:
   postgres_data:

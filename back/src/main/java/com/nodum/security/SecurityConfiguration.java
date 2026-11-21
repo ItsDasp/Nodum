@@ -31,6 +31,7 @@ public class SecurityConfiguration {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/health").permitAll()
+                .requestMatchers("/api/v1/shell/stream").permitAll()
                 .requestMatchers("/api/v1/runtime/gateway/**").permitAll()
                 .requestMatchers("/api/v1/auth/password").authenticated()
                 .requestMatchers("/api/v1/auth/**").permitAll()

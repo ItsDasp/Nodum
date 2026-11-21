@@ -2,6 +2,7 @@ package com.nodum.modules;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -27,5 +28,15 @@ public class ModuleExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<?> moduleConflict(IllegalStateException error) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", error.getMessage()));
+    }
+
+    @ExceptionHandler(com.nodum.modules.runtime.InfrastructureAgentClient.InfrastructureAgentException.class)
+    public ResponseEntity<?> agentUnavailable(RuntimeException error) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("message", error.getMessage()));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<?> moduleStatus(ResponseStatusException error) {
+        return ResponseEntity.status(error.getStatusCode()).body(Map.of("message", error.getReason() == null ? "La operación del módulo fue rechazada." : error.getReason()));
     }
 }

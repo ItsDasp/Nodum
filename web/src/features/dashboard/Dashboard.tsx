@@ -18,8 +18,8 @@ export function Dashboard() {
 
       <section className="metric-grid" aria-label="Resumen">
         <div className="surface metric"><div className="metric-label">Proyectos</div><div className="metric-value">{projects.isLoading ? '—' : projects.data?.length ?? '—'}</div></div>
-        <div className="surface metric"><div className="metric-label">APIs publicadas</div><div className="metric-value">—</div><div className="metric-label">Disponible en una fase posterior</div></div>
-        <div className="surface metric"><div className="metric-label">Control Plane</div><div className="metric-value" style={{ fontSize: 16, marginTop: 13 }}><span className={`status-dot ${health.isLoading ? '' : online ? 'ok' : 'error'}`}>{health.isLoading ? 'Comprobando' : online ? 'Operativo' : 'Sin conexión'}</span></div></div>
+        <div className="surface metric"><div className="metric-label">Capacidades de muestra</div><div className="metric-value" style={{ fontSize: 18 }}>{projects.isLoading ? '—' : projects.data?.some((project) => project.name === 'Tienda de demostración') ? 'Kafka + API' : '—'}</div><div className="metric-label">Con contratos publicados</div></div>
+        <div className="surface metric"><div className="metric-label">Plano de control</div><div className="metric-value" style={{ fontSize: 16, marginTop: 13 }}><span className={`status-dot ${health.isLoading ? '' : online ? 'ok' : 'error'}`}>{health.isLoading ? 'Comprobando' : online ? 'Operativo' : 'Sin conexión'}</span></div></div>
       </section>
 
       <section className="surface surface-pad">

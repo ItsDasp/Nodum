@@ -83,4 +83,32 @@ a { color: inherit; text-decoration: none; }
 .empty-state strong { display: block; margin-bottom: 5px; color: #424a44; font-size: 14px; font-weight: 600; }
 .dark .empty-state strong { color: #dce2dd; }
 .mono { font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace; }
+.kafka-admin-grid { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr); gap: 22px; }
+.kafka-topic-form { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 8px; align-items: end; margin-bottom: 12px; }
+.terminal-card { position: relative; overflow: hidden; border: 1px solid #303a33; border-radius: 14px; background: #0a0f0c; box-shadow: 0 18px 48px #1018111c; }
+.terminal-toolbar { display: flex; min-height: 68px; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 16px; border-bottom: 1px solid #26302a; background: linear-gradient(180deg, #18201b, #111713); }
+.terminal-title, .terminal-actions { display: flex; align-items: center; gap: 12px; }
+.terminal-title strong { display: block; color: #e1e9e3; font-size: 13px; font-weight: 600; }
+.terminal-title small { display: block; margin-top: 3px; color: #89958c; font-size: 11px; }
+.terminal-status-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #77827a; box-shadow: 0 0 0 4px #77827a1c; }
+.terminal-status-dot.is-connected { background: #55d58c; box-shadow: 0 0 0 4px #55d58c20; }
+.terminal-status-dot.is-error { background: #f17676; box-shadow: 0 0 0 4px #f1767620; }
+.terminal-status { color: #a2aca5; font-size: 11px; }
+.terminal-status.is-connected { color: #74dfa0; }
+.terminal-status.is-error { color: #ff9292; }
+.terminal-actions { gap: 8px; }
+.terminal-tool-btn { min-height: 32px; padding: 5px 10px; border-color: #364139 !important; background: #202923 !important; color: #d1d9d3 !important; font-size: 11px; }
+.terminal-tool-btn:hover:not(:disabled) { background: #2a352e !important; }
+.terminal-tool-btn:disabled { opacity: .45; }
+.terminal-screen { height: min(68vh, 680px); min-height: 360px; padding: 16px 18px; background: #0a0f0c; cursor: text; }
+.terminal-screen .xterm { height: 100%; }
+.terminal-screen .xterm-viewport { scrollbar-color: #344039 #0a0f0c; }
+.terminal-footer { display: flex; justify-content: space-between; gap: 12px; padding: 9px 16px; border-top: 1px solid #26302a; background: #111713; color: #829087; font: 10px ui-monospace, 'Cascadia Code', monospace; }
+.terminal-error { padding: 10px 16px; border-top: 1px solid #5c3333; background: #261819; color: #ffaaaa; font-size: 12px; }
+.terminal-overlay { position: absolute; inset: 68px 0 34px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px; background: #080b09dc; color: #b4beb7; text-align: center; }
+.terminal-overlay strong { color: #e3eae5; font-size: 14px; }
+.terminal-overlay span { font-size: 12px; }
+@media (max-width: 1050px) { .kafka-admin-grid { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .kafka-topic-form { grid-template-columns: 1fr 1fr; } .kafka-topic-form > div:first-child { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .sidebar { position: static; width: 100%; height: auto; padding: 12px; border-right: 0; border-bottom: 1px solid #e7eae6; } .brand { padding: 0 4px 12px; } .project-switcher, .nav-label, .sidebar-bottom { display: none; } .nav-list { display: flex; overflow-x: auto; } .nav-link { flex: 0 0 auto; } .main-area { margin-left: 0; } .topbar { height: 46px; padding: 0 16px; } .content { padding: 24px 16px 40px; } .metric-grid { grid-template-columns: 1fr; } .page-heading { align-items: flex-start; flex-direction: column; } .request-grid { grid-template-columns: 1fr; } }
+@media (max-width: 620px) { .terminal-toolbar { align-items: flex-start; flex-direction: column; } .terminal-actions { width: 100%; flex-wrap: wrap; } .terminal-screen { min-height: 300px; height: 58vh; padding: 12px 8px; } .terminal-footer { flex-direction: column; } }

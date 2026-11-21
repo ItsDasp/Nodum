@@ -5,7 +5,7 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 FROM eclipse-temurin:21-jre-alpine
-RUN apk add --no-cache wget && addgroup -S nodum && adduser -S -G nodum nodum
+RUN apk add --no-cache wget docker-cli util-linux-misc && addgroup -S nodum && adduser -S -G nodum nodum
 WORKDIR /app
 COPY --from=builder /build/target/*.jar app.jar
 RUN chown -R root:root /app

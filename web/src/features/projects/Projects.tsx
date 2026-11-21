@@ -19,7 +19,7 @@ export function Projects() {
     {remove.isError && <p role="alert" style={{ color: '#a24842', fontSize: 13 }}>{remove.error.message || 'No se pudo eliminar el proyecto.'}</p>}
     {showForm && <form className="surface surface-pad" style={{ display: 'grid', gap: 14, marginBottom: 18 }} onSubmit={(event) => { event.preventDefault(); if (name.trim()) create.mutate(); }}>
       <h2 className="section-title">Crear proyecto</h2>
-      <div><label className="field-label" htmlFor="project-name">Nombre</label><input id="project-name" className="field" value={name} onChange={(event) => setName(event.target.value)} maxLength={120} required autoFocus placeholder="p. ej. University Lab" /></div>
+      <div><label className="field-label" htmlFor="project-name">Nombre</label><input id="project-name" className="field" value={name} onChange={(event) => setName(event.target.value)} maxLength={120} required autoFocus placeholder="p. ej. Laboratorio universitario" /></div>
       <div><label className="field-label" htmlFor="project-description">Descripción <span style={{ fontWeight: 400 }}>(opcional)</span></label><textarea id="project-description" className="field" value={description} onChange={(event) => setDescription(event.target.value)} rows={2} maxLength={1000} placeholder="¿Qué quieres construir?" /></div>
       <div><button className="btn btn-primary" type="submit" disabled={create.isPending || !name.trim()}>{create.isPending ? 'Creando…' : 'Crear proyecto'}</button></div>
     </form>}

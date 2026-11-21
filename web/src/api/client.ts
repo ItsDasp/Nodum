@@ -22,8 +22,8 @@ async function request<T>(path: string, method: string, data?: unknown): Promise
     const detail = await response.text().catch(() => '');
     let message = detail;
     try {
-      const parsed = JSON.parse(detail) as { message?: string; errors?: string[] };
-      message = parsed.errors?.join(' ') || parsed.message || detail;
+      const parsed = JSON.parse(detail) as { message?: string; detail?: string; errors?: string[] };
+      message = parsed.errors?.join(' ') || parsed.detail || parsed.message || detail;
     } catch { /* The server may return a plain text error. */ }
     throw new Error(message || `Solicitud fallida (${response.status})`);
   }

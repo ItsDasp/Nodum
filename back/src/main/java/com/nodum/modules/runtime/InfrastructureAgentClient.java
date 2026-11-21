@@ -34,31 +34,78 @@ public class InfrastructureAgentClient {
     }
 
     public AgentResponse create(String providerId, UUID instanceId) {
-        return operation("create", providerId, instanceId);
+        return operation("create", providerId, instanceId, null);
     }
+
+    public AgentResponse create(String providerId, UUID instanceId, UUID projectId) { return operation("create", providerId, instanceId, projectId); }
 
     public AgentResponse start(String providerId, UUID instanceId) {
-        return operation("start", providerId, instanceId);
+        return operation("start", providerId, instanceId, null);
     }
 
+    public AgentResponse start(String providerId, UUID instanceId, UUID projectId) { return operation("start", providerId, instanceId, projectId); }
+
     public AgentResponse stop(String providerId, UUID instanceId) {
-        return operation("stop", providerId, instanceId);
+        return operation("stop", providerId, instanceId, null);
     }
 
     public AgentResponse restart(String providerId, UUID instanceId) {
-        return operation("restart", providerId, instanceId);
+        return operation("restart", providerId, instanceId, null);
     }
 
     public AgentResponse inspect(String providerId, UUID instanceId) {
-        return operation("inspect", providerId, instanceId);
+        return operation("inspect", providerId, instanceId, null);
     }
 
-    private AgentResponse operation(String operation, String providerId, UUID instanceId) {
+    public RuntimeCommandResult logs(String providerId, UUID instanceId, int tail) {
+        return runtimeRequest("GET", providerId, instanceId, "logs?tail=" + Math.max(1, Math.min(tail, 500)), null);
+    }
+
+    public RuntimeCommandResult execute(String providerId, UUID instanceId, String command, String workingDirectory) {
+        ObjectNode body = objectMapper.createObjectNode().put("command", command).put("workingDirectory", workingDirectory);
+        return runtimeRequest("POST", providerId, instanceId, "shell", body);
+    }
+
+    private RuntimeCommandResult runtimeRequest(String method, String providerId, UUID instanceId,
+                                                String path, ObjectNode body) {
+        if (!enabled()) throw new InfrastructureAgentException("El agente de infraestructura no está configurado.", false);
+        try {
+            HttpRequest.Builder request = HttpRequest.newBuilder(baseUrl.resolve(
+                            "/v1/operations/runtime/" + providerId + "/" + instanceId + "/" + path))
+                    .header("Authorization", "Bearer " + token)
+                            .timeout(Duration.ofSeconds(40));
+            if ("GET".equals(method)) request.GET();
+            else request.header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)));
+            HttpResponse<byte[]> response = httpClient.send(request.build(), HttpResponse.BodyHandlers.ofByteArray());
+            if (response.body().length > 524_288) throw new InfrastructureAgentException("La respuesta del agente excede el límite permitido.", false);
+            JsonNode json = objectMapper.readTree(response.body());
+            if (response.statusCode() >= 300) {
+                throw new InfrastructureAgentException(json.path("message").asText("El agente rechazó la operación."), response.statusCode() >= 500);
+            }
+            return new RuntimeCommandResult(json.path("output").asText(""),
+                    json.path("exitCode").isInt() ? json.path("exitCode").asInt() : null,
+                    json.path("timedOut").asBoolean(false), json.path("truncated").asBoolean(false),
+                    json.path("workingDirectory").isTextual() ? json.path("workingDirectory").asText() : null);
+        } catch (InfrastructureAgentException failure) {
+            throw failure;
+        } catch (java.net.http.HttpTimeoutException failure) {
+            throw new InfrastructureAgentException("La operación remota superó el tiempo de espera.", true);
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw new InfrastructureAgentException("Se interrumpió la operación remota.", true);
+        } catch (Exception failure) {
+            throw new InfrastructureAgentException("No se pudo conectar con el agente de infraestructura.", true);
+        }
+    }
+
+    private AgentResponse operation(String operation, String providerId, UUID instanceId, UUID projectId) {
         if (!enabled()) throw new InfrastructureAgentException("Infrastructure Agent is not configured", false);
         try {
             ObjectNode body = objectMapper.createObjectNode();
             body.put("providerId", providerId);
             body.put("instanceId", instanceId.toString());
+            if (projectId != null) body.put("projectId", projectId.toString());
             HttpRequest request = HttpRequest.newBuilder(baseUrl.resolve("/v1/operations/" + operation))
                     .header("Authorization", "Bearer " + token)
                     .header("Content-Type", "application/json")
@@ -86,6 +133,7 @@ public class InfrastructureAgentClient {
     }
 
     public record AgentResponse(boolean success, String observedState, String runtimeId, String message) {}
+    public record RuntimeCommandResult(String output, Integer exitCode, boolean timedOut, boolean truncated, String workingDirectory) {}
 
     public static class InfrastructureAgentException extends RuntimeException {
         private final boolean retryable;

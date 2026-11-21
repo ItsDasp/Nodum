@@ -36,6 +36,7 @@ nodum:
   kafka:
     remote-url: ${NODUM_KAFKA_REMOTE_URL:}
     remote-token: ${NODUM_KAFKA_REMOTE_TOKEN:}
+    brokers: ${NODUM_KAFKA_BROKERS:kafka:9092}
 
 jwt:
   secret: ${JWT_SECRET}

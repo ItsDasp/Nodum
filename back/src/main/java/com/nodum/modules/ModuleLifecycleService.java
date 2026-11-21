@@ -56,7 +56,7 @@ public class ModuleLifecycleService {
             try { provider.stop(context(module)); } catch (RuntimeException ignored) { }
             module.setObservedState("ERROR");
             module.setLifecycleState("ERROR");
-            module.setLifecycleError("Module failed to start. Check provider logs and configuration.");
+            module.setLifecycleError("No se pudo iniciar el módulo. Revisa su configuración y la disponibilidad del proveedor.");
             module.setRuntimeError(failure instanceof RemoteModuleClient.RemoteModuleException
                     ? failure.getMessage() : null);
         }
@@ -81,7 +81,7 @@ public class ModuleLifecycleService {
         } catch (RuntimeException failure) {
             module.setObservedState("ERROR");
             module.setLifecycleState("ERROR");
-            module.setLifecycleError("Module failed to stop. Check provider logs.");
+            module.setLifecycleError("No se pudo detener el módulo. Revisa los registros del proveedor.");
             module.setRuntimeError(failure instanceof RemoteModuleClient.RemoteModuleException
                     ? failure.getMessage() : null);
         }
@@ -94,7 +94,7 @@ public class ModuleLifecycleService {
 
     public JsonNode execute(Module module, String action, JsonNode input) {
         if (!"RUNNING".equals(module.getLifecycleState())) {
-            throw new IllegalStateException("Start the module before invoking its actions");
+            throw new IllegalStateException("Inicia el módulo antes de ejecutar sus acciones.");
         }
         return requireProvider(module).execute(context(module), action, input);
     }
@@ -115,7 +115,7 @@ public class ModuleLifecycleService {
                 provider.start(context(module), module.getConfigurationJson());
             } catch (RuntimeException failure) {
                 module.setLifecycleState("ERROR");
-                module.setLifecycleError("Module could not be restored after restart. Review its provider and configuration.");
+                module.setLifecycleError("No se pudo restaurar el módulo tras reiniciar Nodum. Revisa su proveedor y configuración.");
                 moduleRepository.save(module);
             }
         }

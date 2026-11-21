@@ -51,7 +51,7 @@ public class GatewayModule implements ModulePlugin {
     @Override
     public ModuleDescriptor descriptor() {
         return new ModuleDescriptor("http-gateway", "1.0.0", 1, "API Gateway",
-                "Enruta solicitudes HTTP a upstreams aprobados.", Set.of("gateway.routes", "gateway.proxy", "gateway.health"));
+                "Enruta solicitudes HTTP a destinos autorizados.", Set.of("gateway.routes", "gateway.proxy", "gateway.health"));
     }
 
     @Override

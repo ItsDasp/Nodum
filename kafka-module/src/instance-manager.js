@@ -10,7 +10,7 @@ export class KafkaInstanceManager {
     if (!configuration || typeof configuration !== 'object' || Array.isArray(configuration)) {
       return ['Configuration must be an object.'];
     }
-    const allowed = new Set(['bootstrapServers', 'topic', 'groupId', 'consume']);
+    const allowed = new Set(['bootstrapServers', 'topic', 'groupId', 'consume', 'partitions', 'replicationFactor', 'partition']);
     const unknown = Object.keys(configuration).filter(key => !allowed.has(key));
     if (unknown.length) return [`Unsupported Kafka property: ${unknown.join(', ')}.`];
 
@@ -27,6 +27,19 @@ export class KafkaInstanceManager {
     if ('consume' in configuration && typeof configuration.consume !== 'boolean') {
       errors.push('consume must be true or false.');
     }
+    if ('partitions' in configuration && (!Number.isInteger(configuration.partitions) || configuration.partitions < 1 || configuration.partitions > 1000)) {
+      errors.push('partitions must be an integer between 1 and 1000.');
+    }
+    if ('replicationFactor' in configuration && (!Number.isInteger(configuration.replicationFactor) || configuration.replicationFactor < 1 || configuration.replicationFactor > 1000)) {
+      errors.push('replicationFactor must be a positive integer.');
+    }
+    if ('partition' in configuration && (!Number.isInteger(configuration.partition) || configuration.partition < 0)) {
+      errors.push('partition must be a non-negative integer.');
+    }
+    if (Number.isInteger(configuration.partition) && Number.isInteger(configuration.partitions)
+      && configuration.partition >= configuration.partitions) {
+      errors.push('partition must be lower than partitions.');
+    }
     if (Object.keys(configuration).some(key => /password|secret|token|credential/i.test(key))) {
       errors.push('Kafka secrets must not be stored in module configuration.');
     }
@@ -37,6 +50,9 @@ export class KafkaInstanceManager {
     if (this.instances.has(instanceId)) await this.stop(instanceId);
 
     const brokers = configuration.bootstrapServers.split(',').map(value => value.trim()).filter(Boolean);
+    const partitions = configuration.partitions ?? 1;
+    const replicationFactor = configuration.replicationFactor ?? 1;
+    const defaultPartition = configuration.partition ?? null;
     const kafka = new Kafka({
       clientId: `nodum-kafka-${instanceId}`,
       brokers,
@@ -49,11 +65,24 @@ export class KafkaInstanceManager {
     const admin = kafka.admin();
     await admin.connect();
     try {
-      await admin.createTopics({ topics: [{ topic: configuration.topic, numPartitions: 1 }] });
+      await admin.createTopics({ topics: [{ topic: configuration.topic, numPartitions: partitions, replicationFactor }] });
     } catch (error) {
       if (!String(error?.message || '').includes('TopicAlreadyExists')) throw error;
     } finally {
       await admin.disconnect();
+    }
+
+    const metadataAdmin = kafka.admin();
+    let actualPartitions;
+    await metadataAdmin.connect();
+    try {
+      const metadata = await metadataAdmin.fetchTopicMetadata({ topics: [configuration.topic] });
+      actualPartitions = metadata.topics.find(topic => topic.name === configuration.topic)?.partitions.length ?? 0;
+    } finally {
+      await metadataAdmin.disconnect();
+    }
+    if (actualPartitions < 1 || (defaultPartition !== null && defaultPartition >= actualPartitions)) {
+      throw new Error('Configured partition does not exist in the Kafka topic.');
     }
 
     const producer = kafka.producer({ idempotent: true, maxInFlightRequests: 5 });
@@ -84,7 +113,8 @@ export class KafkaInstanceManager {
       });
     }
 
-    const instance = { configuration, kafka, producer, consumer, recordBuffer, observedState: 'RUNNING' };
+    const instance = { configuration, kafka, producer, consumer, recordBuffer, partitions: actualPartitions,
+      defaultPartition, observedState: 'RUNNING' };
     this.instances.set(instanceId, instance);
     this.logger.info({ instanceId }, 'Kafka instance started');
     return instance;
@@ -106,8 +136,12 @@ export class KafkaInstanceManager {
     try {
       const admin = instance.kafka.admin();
       await admin.connect();
-      const metadata = await admin.fetchTopicMetadata({ topics: [instance.configuration.topic] });
-      await admin.disconnect();
+      let metadata;
+      try {
+        metadata = await admin.fetchTopicMetadata({ topics: [instance.configuration.topic] });
+      } finally {
+        await admin.disconnect();
+      }
       if (!metadata?.topics?.length) throw new Error('Topic metadata unavailable');
       return { observedState: 'RUNNING', message: 'Kafka broker and topic are available.' };
     } catch (error) {
@@ -123,9 +157,13 @@ export class KafkaInstanceManager {
       if (!input || input.value === undefined) throw Object.assign(new Error('publish requires value.'), { code: 'INVALID_REQUEST' });
       const value = typeof input.value === 'string' ? input.value : JSON.stringify(input.value);
       if (Buffer.byteLength(value, 'utf8') > 1_048_576) throw Object.assign(new Error('Kafka message exceeds 1 MiB.'), { code: 'INVALID_REQUEST' });
+      const partition = input.partition === undefined ? instance.defaultPartition : input.partition;
+      if (partition !== null && (!Number.isInteger(partition) || partition < 0 || partition >= instance.partitions)) {
+        throw Object.assign(new Error(`partition must be between 0 and ${instance.partitions - 1}.`), { code: 'INVALID_REQUEST' });
+      }
       const result = await instance.producer.send({
         topic: instance.configuration.topic,
-        messages: [{ key: input.key === undefined ? undefined : String(input.key), value }]
+        messages: [{ key: input.key === undefined ? undefined : String(input.key), value, ...(partition === null ? {} : { partition }) }]
       });
       const record = result[0];
       return { topic: record.topicName, partition: record.partition, offset: record.baseOffset };

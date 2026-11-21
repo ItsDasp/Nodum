@@ -46,7 +46,7 @@ public class KafkaMessagingModule implements ModulePlugin {
     @Override
     public ModuleDescriptor descriptor() {
         return new ModuleDescriptor("kafka-messaging", "1.0.0", 1, "Kafka",
-                "Publica eventos y, opcionalmente, consume mensajes desde un topic.",
+                "Publica eventos y, de forma opcional, consume mensajes desde un tema (topic).",
                 Set.of("messaging.produce", "messaging.consume", "messaging.health"));
     }
 
@@ -58,7 +58,7 @@ public class KafkaMessagingModule implements ModulePlugin {
             var fields = config.fieldNames();
             while (fields.hasNext()) {
                 String key = fields.next();
-                if (!Set.of("bootstrapServers", "topic", "groupId", "consume").contains(key)) {
+                if (!Set.of("bootstrapServers", "topic", "groupId", "consume", "partitions", "replicationFactor", "partition").contains(key)) {
                     return ModuleValidation.invalid("Propiedad Kafka no admitida: " + key + ". No almacenes credenciales en el módulo.");
                 }
             }
@@ -66,6 +66,15 @@ public class KafkaMessagingModule implements ModulePlugin {
             if (blank(config, "topic")) return ModuleValidation.invalid("topic es obligatorio.");
             if (blank(config, "groupId")) return ModuleValidation.invalid("groupId es obligatorio.");
             if (config.has("consume") && !config.get("consume").isBoolean()) return ModuleValidation.invalid("consume debe ser true o false.");
+            if (config.has("partitions") && (!config.get("partitions").canConvertToInt() || config.get("partitions").asInt() < 1)) {
+                return ModuleValidation.invalid("partitions debe ser un entero mayor que cero.");
+            }
+            if (config.has("replicationFactor") && (!config.get("replicationFactor").canConvertToInt() || config.get("replicationFactor").asInt() < 1)) {
+                return ModuleValidation.invalid("replicationFactor debe ser un entero mayor que cero.");
+            }
+            if (config.has("partition") && (!config.get("partition").canConvertToInt() || config.get("partition").asInt() < 0)) {
+                return ModuleValidation.invalid("partition debe ser un entero igual o mayor que cero.");
+            }
             String topic = config.path("topic").asText();
             if (!topic.matches("[A-Za-z0-9._-]{1,249}") || ".".equals(topic) || "..".equals(topic)) {
                 return ModuleValidation.invalid("topic tiene caracteres o longitud no permitidos.");
@@ -85,8 +94,14 @@ public class KafkaMessagingModule implements ModulePlugin {
         String bootstrapServers = config.path("bootstrapServers").asText();
         String topic = config.path("topic").asText();
         String groupId = config.path("groupId").asText();
+        int partitions = Math.max(1, config.path("partitions").asInt(1));
+        short replicationFactor = (short) Math.max(1, config.path("replicationFactor").asInt(1));
+        Integer defaultPartition = config.has("partition") ? config.path("partition").asInt() : null;
 
-        ensureTopic(bootstrapServers, topic);
+        int actualPartitions = ensureTopic(bootstrapServers, topic, partitions, replicationFactor);
+        if (defaultPartition != null && defaultPartition >= actualPartitions) {
+            throw new IllegalArgumentException("La partición configurada no existe en el topic.");
+        }
 
         Properties producerProperties = new Properties();
         producerProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
@@ -97,7 +112,7 @@ public class KafkaMessagingModule implements ModulePlugin {
         producerProperties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         KafkaProducer<String, String> producer = new KafkaProducer<>(producerProperties);
 
-        Instance instance = new Instance(producer, bootstrapServers, topic);
+        Instance instance = new Instance(producer, bootstrapServers, topic, actualPartitions, defaultPartition);
         instances.put(context.instanceId(), instance);
         try {
             if (config.path("consume").asBoolean(false)) {
@@ -120,18 +135,19 @@ public class KafkaMessagingModule implements ModulePlugin {
         }
     }
 
-    private void ensureTopic(String bootstrapServers, String topic) {
+    private int ensureTopic(String bootstrapServers, String topic, int partitions, short replicationFactor) {
         Properties adminProperties = new Properties();
         adminProperties.put("bootstrap.servers", bootstrapServers);
         adminProperties.put("client.id", "nodum-topic-setup");
         try (AdminClient admin = AdminClient.create(adminProperties)) {
             try {
-                admin.createTopics(List.of(new NewTopic(topic, 1, (short) 1))).all().get(5, TimeUnit.SECONDS);
+                admin.createTopics(List.of(new NewTopic(topic, partitions, replicationFactor))).all().get(5, TimeUnit.SECONDS);
             } catch (java.util.concurrent.ExecutionException exception) {
                 if (!(exception.getCause() instanceof TopicExistsException)) throw exception;
             }
+            return admin.describeTopics(List.of(topic)).all().get(5, TimeUnit.SECONDS).get(topic).partitions().size();
         } catch (Exception failure) {
-            throw new IllegalStateException("Kafka is unavailable or the topic could not be prepared.");
+            throw new IllegalStateException("Kafka no está disponible o no se pudo preparar el topic.");
         }
     }
 
@@ -192,23 +208,27 @@ public class KafkaMessagingModule implements ModulePlugin {
     @Override
     public JsonNode execute(ModuleInstanceContext context, String action, JsonNode input) {
         Instance instance = instances.get(context.instanceId());
-        if (instance == null) throw new IllegalStateException("Kafka module is not running");
+        if (instance == null) throw new IllegalStateException("El módulo Kafka no está iniciado.");
         return switch (action) {
             case "publish" -> publish(instance, input);
             case "read" -> read(instance);
-            default -> throw new UnsupportedOperationException("Unknown Kafka action");
+            default -> throw new UnsupportedOperationException("Acción Kafka desconocida.");
         };
     }
 
     private JsonNode publish(Instance instance, JsonNode input) {
-        if (input == null || !input.hasNonNull("value")) throw new IllegalArgumentException("La acción publish requiere value.");
+        if (input == null || !input.hasNonNull("value")) throw new IllegalArgumentException("La acción de publicación requiere el campo value.");
         try {
             String value = input.get("value").isTextual() ? input.get("value").asText() : input.get("value").toString();
             if (value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 1_048_576) {
                 throw new IllegalArgumentException("El mensaje supera 1 MiB.");
             }
-            var metadata = instance.producer.send(new ProducerRecord<>(instance.topic,
-                    input.hasNonNull("key") ? input.get("key").asText() : null,
+            Integer partition = input != null && input.has("partition") ? input.path("partition").asInt(-1) : instance.defaultPartition;
+            if (partition != null && (partition < 0 || partition >= instance.partitions)) {
+                throw new IllegalArgumentException("La partición debe estar entre 0 y " + (instance.partitions - 1) + ".");
+            }
+            var metadata = instance.producer.send(new ProducerRecord<>(instance.topic, partition,
+                    input != null && input.hasNonNull("key") ? input.get("key").asText() : null,
                     value))
                     .get(5, TimeUnit.SECONDS);
             ObjectNode result = objectMapper.createObjectNode();
@@ -216,16 +236,16 @@ public class KafkaMessagingModule implements ModulePlugin {
             return result;
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Kafka publish was interrupted");
+            throw new IllegalStateException("Se interrumpió la publicación en Kafka.");
         } catch (IllegalArgumentException failure) {
             throw failure;
         } catch (Exception failure) {
-            throw new IllegalStateException("Kafka could not acknowledge the message.");
+            throw new IllegalStateException("Kafka no confirmó la recepción del mensaje.");
         }
     }
 
     private JsonNode read(Instance instance) {
-        if (instance.consumer == null) throw new IllegalStateException("Enable consume in the module configuration first.");
+        if (instance.consumer == null) throw new IllegalStateException("Activa el consumo en la configuración del módulo.");
         ArrayNode result = objectMapper.createArrayNode();
         synchronized (instance.messages) {
             while (!instance.messages.isEmpty()) result.add(instance.messages.removeFirst());
@@ -242,7 +262,7 @@ public class KafkaMessagingModule implements ModulePlugin {
 
     private JsonNode readConfig(String json) {
         try { return objectMapper.readTree(json); }
-        catch (Exception failure) { throw new IllegalArgumentException("Invalid Kafka configuration"); }
+        catch (Exception failure) { throw new IllegalArgumentException("La configuración de Kafka no es válida."); }
     }
 
     private static boolean blank(JsonNode node, String field) {
@@ -253,15 +273,20 @@ public class KafkaMessagingModule implements ModulePlugin {
         private final KafkaProducer<String, String> producer;
         private final String bootstrapServers;
         private final String topic;
+        private final int partitions;
+        private final Integer defaultPartition;
         private final ArrayDeque<JsonNode> messages = new ArrayDeque<>();
         private final AtomicReference<ModuleHealth.State> consumerState = new AtomicReference<>(ModuleHealth.State.RUNNING);
         private volatile KafkaConsumer<String, String> consumer;
         private volatile Thread consumerThread;
 
-        private Instance(KafkaProducer<String, String> producer, String bootstrapServers, String topic) {
+        private Instance(KafkaProducer<String, String> producer, String bootstrapServers, String topic,
+                         int partitions, Integer defaultPartition) {
             this.producer = producer;
             this.bootstrapServers = bootstrapServers;
             this.topic = topic;
+            this.partitions = partitions;
+            this.defaultPartition = defaultPartition;
         }
     }
 }

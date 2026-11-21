@@ -5,6 +5,7 @@ import { Projects } from '../features/projects/Projects';
 import { Modules } from '../features/modules/Modules';
 import { Contracts } from '../features/contracts/Contracts';
 import { ApiTesting } from '../features/testing/ApiTesting';
+import { ModuleOperationsPage } from '../features/operations/ModuleOperationsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('nodum-token');
@@ -60,6 +61,8 @@ export function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/logs" element={<ProtectedRoute><ModuleOperationsPage mode="logs" /></ProtectedRoute>} />
+      <Route path="/shell" element={<ProtectedRoute><ModuleOperationsPage mode="shell" /></ProtectedRoute>} />
     </Routes>
   );
 }

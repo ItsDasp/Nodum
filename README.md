@@ -77,7 +77,9 @@ Access:
 - Backend: http://localhost:8080
 - Swagger UI: http://localhost:8080/swagger-ui.html
 
-Kafka is optional. Start its local broker with `docker compose --profile messaging up -d kafka`. Configure a module with `kafka:9092` when the backend runs in Compose, or `localhost:9094` when the backend runs directly on the host.
+The local Kafka broker starts automatically when Compose starts the backend and waits until the broker is ready. Configure a module with `kafka:9092` when the backend runs in Compose, or `localhost:9094` when the backend runs directly on the host. Set `NODUM_KAFKA_BROKERS` to a comma-separated list to connect to a multi-broker cluster.
+
+On startup, Nodum creates an editable `Tienda de demostración` project for the configured administrator if it does not already exist. It includes a running Kafka producer/consumer with the `nodum.order-events` topic (three partitions, one replica), a protected REST API Gateway for JSONPlaceholder, and published JSON Schema/OpenAPI contracts with realistic examples. The API sample allows `jsonplaceholder.typicode.com` through `NODUM_GATEWAY_ALLOWED_HOSTS`; keep other destinations explicitly allowlisted. The sample API requires the same Bearer token as the Nodum panel. Kafka starts with Compose automatically.
 
 Gateway routes are disabled until an operator allowlists target hosts. Set `NODUM_GATEWAY_ALLOWED_HOSTS` in the environment used by Compose (for example, the root `.env` file) to the exact service hostnames the Gateway may reach. Each route request is capped at 1 MiB and 8 seconds, redirects are not followed, and the module has a 120 requests per minute in-memory limit. The runtime route requires a panel JWT unless that module configuration explicitly sets `public: true`.
 By default, upstream hostnames that resolve to loopback, link-local, private, or multicast addresses are rejected to reduce SSRF risk. For a deliberately internal upstream on a trusted network, set `NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES=true` as an explicit operator decision in addition to the host allowlist.
@@ -151,6 +153,12 @@ NODUM_MODULE_SERVICE_TOKEN=<generate-a-private-service-token>
 
 The token must not be stored in module configuration, logs or PostgreSQL. The legacy `GatewayModule` remains active only as fallback when no remote URL is configured.
 
+### Registros y consola remota de módulos
+
+Las vistas globales **Logs** y **Shell remota** están disponibles en la barra de navegación. La Shell Linux es un módulo que se inicia y detiene desde el proyecto, en un contenedor Alpine propio. Usa una terminal interactiva persistente sobre WebSocket con PTY, bajo el usuario sin privilegios `nodum`; elimina capacidades Linux, activa `no-new-privileges` y no recibe el socket Docker ni montajes del host. Cada proyecto obtiene una red privada: la shell puede resolver y contactar sus contenedores hermanos; no comparte esa red con otros proyectos. CPU, memoria y procesos están acotados a nivel de contenedor.
+
+Estas operaciones pasan por el agente de infraestructura autenticado y los endpoints del backend exigen acceso al proyecto. No uses la consola para imprimir credenciales del entorno ni compartas su salida sin revisarla.
+
 To test locally with Docker access:
 
 ```bash
@@ -216,10 +224,12 @@ NODUM_KAFKA_BROKERS=kafka:9092
 
 Do not place passwords or tokens in module `configuration_json`. Kafka containers use 256 MiB, 0.25 CPU and 64 PIDs. The Infrastructure Agent applies a fixed image and environment; HTTP requests cannot provide Docker images, commands, mounts or volumes.
 
+Kafka module configuration supports broker lists, topic creation, partition count, replication factor, an optional default partition, and consumer group settings. The authenticated Kafka administration panel lists brokers, topics and partitions; it can create/delete topics, increase a topic's partition count, display consumer group members and per-partition offsets/lag, reset offsets for inactive groups, and delete inactive groups. Kafka triggers rebalances automatically when members join or leave. Replication factors cannot exceed the available broker count; one broker therefore supports a factor of one only. Increasing a topic's partition count does not redistribute existing records.
+
 After Docker access and broker configuration are available:
 
 ```bash
-docker compose --env-file .env up -d --build postgres infrastructure-agent gateway-module kafka-module back web
+docker compose --env-file .env up -d --build postgres kafka infrastructure-agent gateway-module kafka-module back web
 curl -i http://localhost:8080/api/v1/health
 curl -i http://localhost:8080/api/v1/module-catalog
 ```

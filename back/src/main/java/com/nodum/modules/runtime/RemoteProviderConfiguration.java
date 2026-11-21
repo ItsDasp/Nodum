@@ -14,8 +14,8 @@ public class RemoteProviderConfiguration {
                                              @Value("${nodum.gateway.remote-token:}") String gatewayToken) {
         RemoteModuleClient client = new RemoteModuleClient(objectMapper, gatewayUrl, gatewayToken);
         return new RemoteModuleAdapter(client, infrastructureAgent, objectMapper,
-                "http-gateway", "1.0.0", "API Gateway",
-                "Enruta solicitudes HTTP a upstreams aprobados.",
+                "http-gateway", "1.0.0", "Pasarela HTTP",
+                "Enruta solicitudes HTTP a destinos autorizados.",
                 java.util.Set.of("gateway.routes", "gateway.proxy", "gateway.health"));
     }
 
@@ -27,7 +27,7 @@ public class RemoteProviderConfiguration {
         RemoteModuleClient client = new RemoteModuleClient(objectMapper, kafkaUrl, kafkaToken);
         return new RemoteModuleAdapter(client, infrastructureAgent, objectMapper,
                 "kafka-messaging", "1.0.0", "Kafka",
-                "Publica eventos y consume mensajes desde un topic.",
+                "Publica eventos y consume mensajes desde un tema (topic).",
                 java.util.Set.of("messaging.produce", "messaging.consume", "messaging.health"));
     }
 }
