@@ -25,6 +25,7 @@ public class DemoWorkspaceInitializer {
     private static final Logger log = LoggerFactory.getLogger(DemoWorkspaceInitializer.class);
     private static final String PROJECT_NAME = "Tienda de demostración";
     private static final String KAFKA_MODULE_NAME = "Eventos de pedidos (Kafka)";
+    private static final String AUDIT_KAFKA_MODULE_NAME = "Eventos de auditoría (Kafka)";
     private static final String API_MODULE_NAME = "API de publicaciones";
 
     private static final String KAFKA_SCHEMA = """
@@ -187,21 +188,45 @@ public class DemoWorkspaceInitializer {
         });
 
         Module kafka = findOrCreateKafka(project, owner);
+        Module auditKafka = findOrCreateAuditKafka(project, owner);
         Module api = findOrCreateApi(project, owner);
         ensureContract(kafka, owner, "Evento de pedido", "Esquema JSON Schema del evento publicado en el tema nodum.order-events. Incluye pedidos creados y cancelados.", "1.0.0", KAFKA_SCHEMA, KAFKA_EXAMPLES);
         ensureContract(api, owner, "API REST de publicaciones", "Definición OpenAPI 3.1 de los endpoints GET /posts, GET /posts/{id} y POST /posts, con seguridad Bearer.", "1.0.0", API_SCHEMA, API_EXAMPLES);
 
         startSampleModule(kafka);
+        startSampleModule(auditKafka);
         startSampleModule(api);
     }
 
     private Module findOrCreateKafka(Project project, User owner) {
         return moduleRepository.findByProjectIdAndOwnerId(project.getId(), owner.getId()).stream()
                 .filter(module -> KAFKA_MODULE_NAME.equals(module.getName()))
-                .findFirst().orElseGet(() -> saveModule(project, owner, KAFKA_MODULE_NAME,
-                        "Tema nodum.order-events con tres particiones, productor y consumidor de demostración.",
+                .findFirst()
+                .map(module -> updateDemoKafkaConfiguration(module,
+                        "Tema nodum.order-events con tres particiones y tres réplicas.",
+                        """
+                        {"bootstrapServers":"kafka-1:9092,kafka-2:9092,kafka-3:9092","topic":"nodum.order-events","partitions":3,"replicationFactor":3,"groupId":"nodum-demo-orders","consume":true}
+                        """))
+                .orElseGet(() -> saveModule(project, owner, KAFKA_MODULE_NAME,
+                        "Tema nodum.order-events con tres particiones y tres réplicas.",
                         "kafka-messaging", """
-                                {"bootstrapServers":"kafka:9092","topic":"nodum.order-events","partitions":3,"replicationFactor":1,"groupId":"nodum-demo-orders","consume":true}
+                                {"bootstrapServers":"kafka-1:9092,kafka-2:9092,kafka-3:9092","topic":"nodum.order-events","partitions":3,"replicationFactor":3,"groupId":"nodum-demo-orders","consume":true}
+                                """));
+    }
+
+    private Module findOrCreateAuditKafka(Project project, User owner) {
+        return moduleRepository.findByProjectIdAndOwnerId(project.getId(), owner.getId()).stream()
+                .filter(module -> AUDIT_KAFKA_MODULE_NAME.equals(module.getName()))
+                .findFirst()
+                .map(module -> updateDemoKafkaConfiguration(module,
+                        "Tema nodum.audit-events con tres particiones y tres réplicas.",
+                        """
+                        {"bootstrapServers":"kafka-1:9092,kafka-2:9092,kafka-3:9092","topic":"nodum.audit-events","partitions":3,"replicationFactor":3,"groupId":"nodum-demo-audit","consume":true}
+                        """))
+                .orElseGet(() -> saveModule(project, owner, AUDIT_KAFKA_MODULE_NAME,
+                        "Tema nodum.audit-events con tres particiones y tres réplicas.",
+                        "kafka-messaging", """
+                                {"bootstrapServers":"kafka-1:9092,kafka-2:9092,kafka-3:9092","topic":"nodum.audit-events","partitions":3,"replicationFactor":3,"groupId":"nodum-demo-audit","consume":true}
                                 """));
     }
 
@@ -213,6 +238,18 @@ public class DemoWorkspaceInitializer {
                         "http-gateway", """
                                 {"public":false,"routes":[{"pathPrefix":"/posts","upstreamUrl":"https://jsonplaceholder.typicode.com"}]}
                                 """));
+    }
+
+    private Module updateDemoKafkaConfiguration(Module module, String description, String configuration) {
+        String normalizedConfiguration = configuration.trim();
+        boolean changed = !normalizedConfiguration.equals(module.getConfigurationJson());
+        module.setDescription(description);
+        module.setConfigurationJson(normalizedConfiguration);
+        module = moduleRepository.save(module);
+        if (changed && "RUNNING".equals(module.getLifecycleState())) {
+            lifecycleService.stop(module);
+        }
+        return module;
     }
 
     private Module saveModule(Project project, User owner, String name, String description,

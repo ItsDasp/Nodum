@@ -23,14 +23,20 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.TopicExistsException;
 
 @Component
@@ -167,13 +173,28 @@ public class KafkaMessagingModule implements ModulePlugin {
                                 .put("timestamp", record.timestamp()));
                     }
                 }
+                commitPending(instance, consumer);
             }
         } catch (WakeupException expectedOnStop) {
             // Wakeup is how the owning instance shuts down the poll loop.
         } catch (RuntimeException failure) {
             instance.consumerState.set(ModuleHealth.State.ERROR);
         } finally {
+            commitPending(instance, consumer);
             instance.consumerState.compareAndSet(ModuleHealth.State.RUNNING, ModuleHealth.State.STOPPED);
+        }
+    }
+
+    private void commitPending(Instance instance, KafkaConsumer<String, String> consumer) {
+        Acknowledgement acknowledgement;
+        while ((acknowledgement = instance.pendingAcknowledgements.poll()) != null) {
+            try {
+                consumer.commitSync(acknowledgement.offsets());
+            } catch (RuntimeException failure) {
+                instance.consumerState.set(ModuleHealth.State.ERROR);
+            } finally {
+                acknowledgement.completed().countDown();
+            }
         }
     }
 
@@ -247,8 +268,34 @@ public class KafkaMessagingModule implements ModulePlugin {
     private JsonNode read(Instance instance) {
         if (instance.consumer == null) throw new IllegalStateException("Activa el consumo en la configuración del módulo.");
         ArrayNode result = objectMapper.createArrayNode();
+        Map<TopicPartition, OffsetAndMetadata> offsets = new HashMap<>();
         synchronized (instance.messages) {
-            while (!instance.messages.isEmpty()) result.add(instance.messages.removeFirst());
+            while (!instance.messages.isEmpty()) {
+                JsonNode record = instance.messages.removeFirst();
+                result.add(record);
+                if (record.has("partition") && record.has("offset")) {
+                    TopicPartition partition = new TopicPartition(instance.topic, record.path("partition").asInt());
+                    offsets.merge(partition, new OffsetAndMetadata(record.path("offset").asLong() + 1),
+                            (current, next) -> next.offset() > current.offset()
+                                    ? next : current);
+                }
+            }
+        }
+        if (!offsets.isEmpty()) {
+            CountDownLatch completed = new CountDownLatch(1);
+            instance.pendingAcknowledgements.add(new Acknowledgement(Map.copyOf(offsets), completed));
+            instance.consumer.wakeup();
+            try {
+                if (!completed.await(2, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Kafka no confirmó los offsets consumidos a tiempo.");
+                }
+                if (instance.consumerState.get() == ModuleHealth.State.ERROR) {
+                    throw new IllegalStateException("Kafka no pudo confirmar los offsets consumidos.");
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Se interrumpió la confirmación de offsets en Kafka.");
+            }
         }
         return result;
     }
@@ -276,6 +323,7 @@ public class KafkaMessagingModule implements ModulePlugin {
         private final int partitions;
         private final Integer defaultPartition;
         private final ArrayDeque<JsonNode> messages = new ArrayDeque<>();
+        private final ConcurrentLinkedQueue<Acknowledgement> pendingAcknowledgements = new ConcurrentLinkedQueue<>();
         private final AtomicReference<ModuleHealth.State> consumerState = new AtomicReference<>(ModuleHealth.State.RUNNING);
         private volatile KafkaConsumer<String, String> consumer;
         private volatile Thread consumerThread;
@@ -289,4 +337,6 @@ public class KafkaMessagingModule implements ModulePlugin {
             this.defaultPartition = defaultPartition;
         }
     }
+
+    private record Acknowledgement(Map<TopicPartition, OffsetAndMetadata> offsets, CountDownLatch completed) {}
 }

@@ -1,5 +1,24 @@
 import { Kafka } from 'kafkajs';
 
+export function nextOffsetsToCommit(records) {
+  const latestByPartition = new Map();
+  for (const record of records) {
+    if (record?.topic && Number.isInteger(record.partition) && record.offset !== undefined) {
+      const key = `${record.topic}:${record.partition}`;
+      const current = latestByPartition.get(key);
+      const offset = BigInt(record.offset);
+      if (!current || offset >= current.offset) {
+        latestByPartition.set(key, { topic: record.topic, partition: record.partition, offset });
+      }
+    }
+  }
+  return [...latestByPartition.values()].map(({ topic, partition, offset }) => ({
+    topic,
+    partition,
+    offset: (offset + 1n).toString()
+  }));
+}
+
 export class KafkaInstanceManager {
   constructor(logger) {
     this.logger = logger;
@@ -94,7 +113,8 @@ export class KafkaInstanceManager {
     if (configuration.consume === true) {
       consumer = kafka.consumer({
         groupId: configuration.groupId,
-        allowAutoTopicCreation: false
+        allowAutoTopicCreation: false,
+        autoCommit: false
       });
       await consumer.connect();
       await consumer.subscribe({ topic: configuration.topic, fromBeginning: false });
@@ -172,6 +192,8 @@ export class KafkaInstanceManager {
     if (action === 'read') {
       if (!instance.consumer) throw Object.assign(new Error('Consume is not enabled for this instance.'), { code: 'INVALID_REQUEST' });
       const records = instance.recordBuffer.splice(0, instance.recordBuffer.length);
+      const offsets = nextOffsetsToCommit(records);
+      if (offsets.length > 0) await instance.consumer.commitOffsets(offsets);
       return records;
     }
 

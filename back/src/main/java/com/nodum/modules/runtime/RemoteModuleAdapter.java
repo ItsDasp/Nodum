@@ -92,6 +92,8 @@ public class RemoteModuleAdapter implements ModulePlugin {
             }
         } catch (RemoteModuleClient.RemoteModuleException failure) {
             throw failure;
+        } catch (InfrastructureAgentClient.InfrastructureAgentException failure) {
+            throw new RemoteModuleClient.RemoteModuleException(failure.getMessage(), failure.isRetryable());
         } catch (Exception failure) {
             throw new RemoteModuleClient.RemoteModuleException("Remote Gateway could not start", true);
         }
@@ -100,17 +102,23 @@ public class RemoteModuleAdapter implements ModulePlugin {
     @Override
     public void stop(ModuleInstanceContext context) {
         requireEnabled();
-        if (infrastructureAgent.enabled()) {
-            InfrastructureAgentClient.AgentResponse container = infrastructureAgent.stop(providerId, context.instanceId());
-            if (!container.success()) throw new InfrastructureAgentClient.InfrastructureAgentException(container.message(), true);
-        }
-        RemoteModuleContract.Request request = RemoteModuleContract.Request.forInstance(
-                context.projectId(), context.instanceId(), providerId, providerVersion, null);
-        RemoteModuleContract.Response response = client.stop(request);
-        if (!response.success()) {
-            throw new RemoteModuleClient.RemoteModuleException(
-                    response.error() == null ? "Remote Gateway could not stop" : response.error().message(),
-                    response.error() != null && response.error().retryable());
+        try {
+            if (infrastructureAgent.enabled()) {
+                InfrastructureAgentClient.AgentResponse container = infrastructureAgent.stop(providerId, context.instanceId());
+                if (!container.success()) throw new InfrastructureAgentClient.InfrastructureAgentException(container.message(), true);
+            }
+            RemoteModuleContract.Request request = RemoteModuleContract.Request.forInstance(
+                    context.projectId(), context.instanceId(), providerId, providerVersion, null);
+            RemoteModuleContract.Response response = client.stop(request);
+            if (!response.success()) {
+                throw new RemoteModuleClient.RemoteModuleException(
+                        response.error() == null ? "Remote Gateway could not stop" : response.error().message(),
+                        response.error() != null && response.error().retryable());
+            }
+        } catch (RemoteModuleClient.RemoteModuleException failure) {
+            throw failure;
+        } catch (InfrastructureAgentClient.InfrastructureAgentException failure) {
+            throw new RemoteModuleClient.RemoteModuleException(failure.getMessage(), failure.isRetryable());
         }
     }
 

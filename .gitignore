@@ -7,3 +7,4 @@ back/target/
 .idea/
 .vscode/
 *.log
+docs/
