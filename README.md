@@ -1,4 +1,6 @@
-# Nodum
+<a href="https://instagram.com/xidasp">
+  <img src="https://i.imgur.com/DqvcxcH.png" alt="Banner" style="width: 200%; max-width: 3048px;">
+</a>
 
 Para una guía completa de arquitectura, arranque, seguridad, módulos, Kafka, Gateway, Docker y Shell Linux, consulta [docs/PROJECT_OPERATION.md](docs/PROJECT_OPERATION.md).
 
