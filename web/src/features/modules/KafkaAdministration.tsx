@@ -38,7 +38,7 @@ export function KafkaAdministration() {
   };
   return <section className="surface surface-pad" style={{ marginTop: 20 }}>
     <div className="section-head"><div><h2 className="section-title">Administración de Kafka</h2><p style={{ margin: '5px 0 0', color: '#818a83', fontSize: 12 }}>Gestiona temas y consulta el estado de sus consumidores.</p></div><button className="btn" onClick={refresh}>Actualizar</button></div>
-    {cluster.isLoading ? <p className="empty-state">Conectando con el clúster…</p> : cluster.isError ? <p role="alert" style={{ color: '#a24842', fontSize: 13 }}>No se pudo consultar Kafka. Comprueba que el broker esté iniciado y accesible.</p> : <div style={{ marginBottom: 18, padding: 12, borderRadius: 8, background: '#f5f7f5', fontSize: 12 }}>
+    {cluster.isLoading ? <p className="empty-state">Conectando con el clúster…</p> : cluster.isError ? <p role="alert" style={{ color: '#a24842', fontSize: 13 }}>No se pudo consultar Kafka. Comprueba que el broker esté iniciado y accesible.</p> : <div style={{ marginBottom: 18, padding: 12, borderRadius: 8, background: '#131714', fontSize: 12 }}>
       <strong>{brokerCount} {brokerCount === 1 ? 'broker disponible' : 'brokers disponibles'}</strong><span className="mono" style={{ marginLeft: 10, color: '#68716b' }}>{cluster.data?.bootstrapServers}</span>
       <p style={{ margin: '6px 0 0', color: '#68716b' }}>Un tema (topic) contiene mensajes distribuidos en particiones. Cada partición mantiene su propio desplazamiento (offset). Las réplicas son copias de una partición en distintos brokers. Con un solo broker, el factor máximo es 1. Kafka reasigna automáticamente las particiones cuando consumidores se unen o salen del grupo.</p>
     </div>}
@@ -72,7 +72,7 @@ export function KafkaAdministration() {
         {groups.isLoading ? <p className="empty-state">Cargando grupos…</p> : groups.isError ? <p style={{ color: '#a24842', fontSize: 12 }}>No se pudieron cargar los grupos.</p> : groups.data?.length ? <div style={{ display: 'grid', gap: 5 }}>
           {groups.data.map((group) => <button key={group.groupId} className="btn" style={{ textAlign: 'left' }} onClick={() => setSelectedGroup(group.groupId)}><strong>{group.groupId}</strong><span style={{ marginLeft: 8, color: '#818a83', fontSize: 11 }}>{groupStateLabels[group.state] || group.state} · {group.memberCount} miembro(s)</span></button>)}
         </div> : <p className="empty-state">Aún no hay grupos con offsets.</p>}
-        {groupDetails.data && <div style={{ marginTop: 14, padding: 12, background: '#f5f7f5', borderRadius: 8 }}>
+        {groupDetails.data && <div style={{ marginTop: 14, padding: 12, background: '#131714', borderRadius: 8 }}>
           <div className="section-head"><div><strong>{groupDetails.data.groupId}</strong><div style={{ color: '#68716b', fontSize: 11, marginTop: 3 }}>Estado: {groupStateLabels[groupDetails.data.state] || groupDetails.data.state} · {groupDetails.data.members.length} miembro(s) · retraso total (lag): {groupDetails.data.totalLag}</div></div><button className="btn" onClick={() => setSelectedGroup('')}>Cerrar</button></div>
           <p style={{ fontSize: 11, color: '#68716b' }}>El retraso (lag) es la diferencia entre el último desplazamiento del tema y el último desplazamiento confirmado por el grupo.</p>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 9 }}>
