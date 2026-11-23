@@ -1,180 +1,202 @@
-# Nodum Architecture Documentation
+# Arquitectura de Nodum
 
-## Implementation status
+> [!NOTE]
+> Este documento describe la arquitectura objetivo junto al estado real de implementación. Las funcionalidades futuras y pendientes están centralizadas en [`TODO.md`](TODO.md).
 
-This document describes the intended architecture alongside the implemented first module phase. The `com.nodum.modules.spi` registry now discovers the Kafka and HTTP Gateway providers. Project instances persist their provider ID/version, validated JSON configuration, and lifecycle state. The panel can create instances, start/stop them, check state, and invoke provider actions. RabbitMQ, dynamic API generation, a standalone public Gateway ingress, and process isolation are not implemented. A module instance created without a provider remains metadata only.
+## Estado de implementación
 
-The SPI is an extension seam for trusted providers compiled into the host. Implement `ModulePlugin` as a Spring bean, declare a unique descriptor and capabilities, validate configuration, and implement start/stop/health/actions. The registry rejects duplicate IDs and sorts the catalog. Providers run in the Control Plane JVM and share its memory, dependencies, and failure domain; this is code modularity, not runtime isolation. Kafka currently provides a real producer and optional consumer whose uncommitted records are exposed in a bounded in-memory buffer. Gateway currently forwards requests only through an authenticated module action and an operator-configured host allowlist. Gateway validation also rejects allowlisted hosts resolving to loopback, link-local, private, or multicast addresses by default; internal upstreams require the explicit `NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES=true` setting. Neither provider offers process isolation or production secret management.
+La arquitectura de tres planos ya está parcialmente materializada:
 
-## Overview
+- **Plano de control**: autenticación JWT, CRUD de proyectos, catálogo de módulos, instancias con configuración JSON validada y ciclo de vida persistido (`lifecycle_state`, `observed_state`, `lifecycle_error`).
+- **SPI de módulos** (`com.nodum.modules.spi`): descubrimiento de proveedores confiables en el arranque del backend, contrato `ModulePlugin`, catálogo en `GET /api/v1/module-catalog` (JWT requerido) y acciones de instancia.
+- **Proveedores implementados**: `kafka-messaging` (productor/consumidor real, buffer limitado en memoria) y `http-gateway` (proxy autenticado con allowlist), ambos disponibles también como servicios remotos (`kafka-module`, `gateway-module`) gestionados por `infrastructure-agent`.
+- **Shell Linux remota**: terminal PTY sobre WebSocket en contenedores Alpine aislados por proyecto.
 
-Nodum is organized into three architectural layers with clear separation of concerns:
+Una instancia de módulo creada sin proveedor permanece como metadato.
 
-### 1. Control Plane
+El SPI es una costura de extensión para proveedores **confiables compilados en el host**. Los proveedores se registran como beans de Spring, comparten el classpath, la memoria y el dominio de fallos del plano de control: es modularidad de código, **no** aislamiento de runtime. Para proveedores que requieran aislamiento, la dirección es un servicio desplegado por separado con un contrato remoto versionado (patrón ya aplicado a `gateway-module` y `kafka-module`).
 
-**Responsibilities:**
-- Authentication and authorization of the admin panel
-- User and project management
-- Configuration storage and validation
-- Version management
-- Module catalog management
-- Dependency resolution
-- Operation orchestration
-- Publication management
-- Administrative logs and audit
-- Exposure of admin APIs consumed by `/web/`
+---
 
-**Key Characteristics:**
-- Must remain operational when user project resources (brokers, generated APIs, project databases) fail
-- Stores configurations in a declarative, validated format
-- Manages the lifecycle of modules without executing them directly
-- Provides the administrative interface for all operations
+## 1. Plano de control
 
-**Packages:**
-- `identity`: User authentication, sessions, permissions
-- `projects`: Project CRUD and metadata
-- `apis`: API definition storage and validation
-- `schemas`: Schema definition management
-- `publishing`: Version control and publication orchestration
-- `modules`: Module catalog and contract management
-- `security`: Panel security policies
-- `observability`: Platform-level logging and metrics
+**Responsabilidades**
 
-### 2. Execution Plane
+- Autenticación y autorización del panel administrativo.
+- Gestión de usuarios y proyectos.
+- Almacenamiento y validación de configuraciones.
+- Gestión del catálogo de módulos y resolución de dependencias.
+- Orquestación de operaciones y publicación de contratos.
+- Logs administrativos y auditoría.
+- Exposición de las APIs administrativas consumidas por `web/`.
 
-**Responsibilities:**
-- Interpret API configurations
-- Expose dynamic endpoints
-- Execute validations and configured operations
-- Apply authentication and authorization policies
-- Access associated databases
-- Publish and consume messages
-- Apply module execution policies
-- Manage lifecycle of executable components
+**Características clave**
 
-**Key Characteristics:**
-- Executes user-created systems based on Control Plane configurations
-- Independent of the web interface (can run without active admin session)
-- Implements the runtime behavior defined in configurations
-- Applies security policies at runtime
+- Debe permanecer operativo aunque fallen los recursos de los proyectos de usuario (brokers, APIs generadas, bases de datos de proyecto).
+- Almacena configuraciones en formato declarativo y validado.
+- Gestiona el ciclo de vida de los módulos sin ejecutarlos directamente en el plano de ejecución.
+- Provee la interfaz administrativa de todas las operaciones.
 
-**Packages:**
-- `runtime`: Dynamic endpoint resolution and execution
-- `operations`: Business operation execution
-- `security`: Runtime security enforcement (JWT validation, permission checks)
+**Paquetes** (`com.nodum.*`)
 
-### 3. Resource Layer
+| Paquete | Contenido |
+|---|---|
+| `identity` | Autenticación de usuarios, JWT, contraseña admin |
+| `projects` | CRUD de proyectos y metadatos |
+| `apis` | Definición y validación de APIs/contratos |
+| `schemas` | Gestión de esquemas JSON |
+| `publishing` | Versionado y publicación de contratos |
+| `modules` | Catálogo, SPI y contrato de proveedores |
+| `runtime` | Resolución y ejecución dinámica |
+| `persistence` | Adaptadores JPA/PostgreSQL |
+| `security` | Políticas de seguridad del panel |
+| `operations` | Operaciones de negocio |
+| `observability` | Logs y métricas de plataforma |
+| `shared` | Utilidades compartidas |
 
-**Responsibilities:**
-- Database connections and management
-- Message broker integration (RabbitMQ, Kafka)
-- Container management (Docker module)
-- External service integrations
-- Resource health monitoring
+## 2. Plano de ejecución
 
-**Key Characteristics:**
-- Provides adapters/contracts for external resource access
-- Isolates resource-specific implementations behind interfaces
-- Manages connection pools and lifecycle
+**Responsabilidades**
 
-**Packages:**
-- `persistence`: Database adapters and connection management
-- `modules`: Resource-specific implementations (RabbitMQ, Docker, etc.)
+- Interpretar las configuraciones de API.
+- Exponer endpoints dinámicos.
+- Ejecutar validaciones y operaciones configuradas.
+- Aplicar políticas de autenticación y autorización.
+- Acceder a las bases de datos asociadas.
+- Publicar y consumir mensajes.
+- Gestionar el ciclo de vida de los componentes ejecutables.
 
-## Separation and Fault Tolerance
+**Características clave**
 
-**Dependency Rules:**
-- Control Plane → Resource Layer (for internal persistence only)
-- Execution Plane → Control Plane (reads configurations)
-- Execution Plane → Resource Layer (executes operations)
-- Control Plane does NOT depend on Execution Plane runtime
-- Execution Plane does NOT depend on Control Plane being fully operational after config load
+- Ejecuta sistemas creados por usuarios a partir de configuraciones del plano de control.
+- Independiente de la interfaz web (puede correr sin sesión de admin activa).
+- Aplica las políticas de seguridad en runtime.
 
-**Failure Scenarios:**
-- RabbitMQ down: Control Plane remains operational, projects without RabbitMQ continue
-- Project stopped: Control Plane remains operational
-- Module optional: Core does not attempt to initialize it as mandatory
+**Paquetes**
 
-## Modular System
+- `runtime`: resolución de endpoints y ejecución dinámica (incluye el ingress del Gateway).
+- `operations`: ejecución de operaciones de negocio.
+- `security`: enforcement en runtime (validación JWT, permisos).
 
-### Module Contract Interface
+## 3. Capa de recursos
+
+**Responsabilidades**
+
+- Conexiones y gestión de bases de datos.
+- Integración con brokers de mensajes (Kafka).
+- Gestión de contenedores vía `infrastructure-agent`.
+- Integraciones con servicios externos.
+- Monitoreo de salud de recursos.
+
+**Características clave**
+
+- Adaptadores/contratos para acceso a recursos externos.
+- Aísla las implementaciones específicas detrás de interfaces.
+- Gestiona pools de conexiones y ciclos de vida.
+
+**Puntos de integración actuales**
+
+- `persistence`: JPA/Hibernate sobre PostgreSQL 16 con Flyway.
+- `kafka-module`: servicio remoto Spring Boot que habla con el clúster KRaft por AdminClient/producer/consumer.
+- `gateway-module`: servicio remoto Spring Boot que actúa como proxy HTTP.
+- `infrastructure-agent`: gestor Docker (único con `/var/run/docker.sock`).
+
+---
+
+## Separación de capas y tolerancia a fallos
+
+### Reglas de dependencia
+
+```text
+Plano de control  ──►  Capa de recursos   (solo persistencia interna)
+Plano de ejecución ──►  Plano de control  (lee configuraciones)
+Plano de ejecución ──►  Capa de recursos   (ejecuta operaciones)
+```
+
+- El plano de control **no** depende del runtime del plano de ejecución.
+- El plano de ejecución **no** depende de que el plano de control siga operativo tras cargar la configuración.
+
+### Escenarios de fallo
+
+| Fallo | Resultado esperado |
+|---|---|
+| Broker Kafka caído | El plano de control sigue operativo; los proyectos sin Kafka continúan |
+| Módulo remoto caído | El módulo queda en estado `DEGRADED`/`ERROR` sin tumbar el panel |
+| Proyecto detenido | El plano de control permanece operativo |
+| Recurso opcional | El núcleo nunca lo inicializa como dependencia obligatoria |
+
+---
+
+## Sistema modular
+
+### SPI de proveedores (`ModulePlugin`)
+
+Contrato implementado por cada proveedor confiable:
 
 ```java
-public interface Module {
-    String getId();
-    String getName();
-    String getVersion();
-    ModuleType getType();
-    
-    // Lifecycle operations
-    ValidationResult validateConfiguration(ModuleConfiguration config);
-    void prepareResources(ModuleConfiguration config) throws ModuleException;
-    void start(ModuleConfiguration config) throws ModuleException;
-    void stop(ModuleConfiguration config) throws ModuleException;
-    void restart(ModuleConfiguration config) throws ModuleException;
-    
-    // Status and health
-    ModuleStatus getStatus(ModuleConfiguration config);
-    HealthCheckResult healthCheck(ModuleConfiguration config);
-    
-    // Logs and diagnostics
-    List<LogEntry> getLogs(ModuleConfiguration config, LogQuery query);
-    
-    // Optional capabilities
-    default boolean supports(Class<?> capability) {
-        return false;
-    }
+public interface ModulePlugin {
+    ModuleDescriptor descriptor();                    // id, versión, capacidades
+    ValidationResult validateConfiguration(JsonNode config);
+    void start(ModuleInstance instance) throws ModuleException;
+    void stop(ModuleInstance instance) throws ModuleException;
+    HealthResult health(ModuleInstance instance);
+    default ActionResult execute(ModuleInstance instance, String action, JsonNode input) { ... }
 }
 ```
 
-### Module States
+Reglas del registro:
 
-- `CONFIGURED`: Definition exists, not validated
-- `VALIDATING`: Configuration validation in progress
-- `PREPARING`: Resources being allocated
-- `STARTING`: Initialization in progress
-- `RUNNING`: Operational
-- `DEGRADED`: Partially operational
-- `STOPPING`: Shutdown in progress
-- `STOPPED`: Not running
-- `ERROR`: Failed state
+- Spring descubre beans `ModulePlugin` en el arranque.
+- El registro rechaza IDs duplicados y ordena el catálogo.
+- Cada proveedor declara ID estable, versión semántica, versión del contrato SPI y capacidades.
+- Los proveedores **no** pueden subir código arbitrario desde el panel.
 
-### Module Types
+### Estados del módulo
 
-- `API_RUNTIME`: Dynamic API execution
-- `DATABASE`: Database connection and management
-- `MESSAGE_BROKER`: RabbitMQ, Kafka
-- `AUTHENTICATION`: Identity providers
-- `CONTAINER`: Docker management
-- `OBSERVABILITY`: Metrics and tracing
+`CONFIGURED` → `VALIDATING` → `PREPARING` → `STARTING` → `RUNNING` → (`DEGRADED` | `STOPPING` → `STOPPED` | `ERROR`)
 
-## Versioned Configuration Storage
+- `RUNNING`: operativo.
+- `DEGRADED`: parcialmente operativo.
+- `ERROR`: estado de fallo con `lifecycle_error`/`runtime_error` visibles en el panel.
+- `STOPPED`: no ejecutándose.
 
-### Storage Strategy
+### Tipos de módulo implementados
 
-Configurations are stored with explicit versioning:
+| Tipo | Proveedor |
+|---|---|
+| `MESSAGE_BROKER` | `kafka-messaging` (productor/consumidor + buffer en memoria) |
+| `API_RUNTIME` / Gateway HTTP | `http-gateway` (proxy autenticado + ingress JWT) |
+| `CONTAINER` | `linux-shell` y módulos Runtime vía `infrastructure-agent` |
 
-1. **Draft Version**: Work-in-progress configuration
-2. **Validated Version**: Configuration passed validation
-3. **Published Version**: Active configuration in use
+---
 
-### Database Schema
+## Almacenamiento versionado de configuraciones
+
+### Estrategia
+
+Las configuraciones se guardan con versionado explícito:
+
+1. **Borrador** (`DRAFT`): trabajo en progreso.
+2. **Validada** (`VALIDATED`): superó validación.
+3. **Publicada** (`PUBLISHED`): configuración activa.
+
+Las versiones publicadas anteriores permanecen disponibles para rollback: se reactiva un `version_id` previo. Los datos en recursos externos (bases de datos, brokers) **no** se revierten automáticamente; los cambios destructivos de esquema requieren confirmación explícita.
+
+Esquema conceptual:
 
 ```sql
--- Configuration versions table
 CREATE TABLE configuration_versions (
     id UUID PRIMARY KEY,
-    entity_id UUID NOT NULL,  -- References API, module, etc.
+    entity_id UUID NOT NULL,
     entity_type VARCHAR(50) NOT NULL,
     version_number INTEGER NOT NULL,
-    status VARCHAR(50) NOT NULL,  -- DRAFT, VALIDATED, PUBLISHED, RETIRED
+    status VARCHAR(50) NOT NULL,          -- DRAFT, VALIDATED, PUBLISHED, RETIRED
     configuration JSONB NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by UUID REFERENCES users(id),
     UNIQUE(entity_id, entity_type, version_number)
 );
 
--- Active version tracking
 CREATE TABLE active_versions (
     entity_id UUID PRIMARY KEY,
     entity_type VARCHAR(50) NOT NULL,
@@ -182,78 +204,90 @@ CREATE TABLE active_versions (
 );
 ```
 
-### Rollback Strategy
+---
 
-- Previous published versions remain available
-- Rollback reactivates a previous version_id
-- Data in external resources (databases, brokers) is NOT automatically reverted
-- Destructive schema changes require explicit confirmation
+## Arquitectura de seguridad
 
-## Security Architecture
+### Autenticación del panel (plano de control)
 
-### Panel Authentication (Control Plane)
-- JWT-based or session-based authentication
-- Local authentication initially
-- Extensible to Microsoft Entra ID via adapters
-- Role-based access control for admin operations
+- JWT HS512 firmado con `JWT_SECRET` (mínimo 64 bytes).
+- Credenciales del administrador sembradas en el primer arranque; contraseña en BCrypt.
+- Sin registro público ni modo anónimo.
+- Cambio de contraseña autenticado vía `POST /api/v1/auth/password`; recuperación offline con `AdminPasswordResetTool`.
 
-### API Authentication (Execution Plane)
-- User-defined authentication endpoints
-- JWT validation with signature, issuer, audience checks
-- Scope/permission-based authorization per endpoint
-- Secrets stored securely (not in plain text)
-- Deny-by-default policy
+### Autenticación de APIs (plano de ejecución)
 
-### Separation of Concerns
-- Panel credentials ≠ API credentials
-- Panel tokens do not grant access to user projects
-- API tokens do not grant admin access to Nodum
+- Endpoints definidos por el usuario con políticas propias.
+- Validación JWT con firma, issuer y audience.
+- Autorización por scopes/permisos por endpoint.
+- Política deny-by-default.
 
-## Technology Stack Decisions
+### Separación de credenciales
 
-### Frontend
-- **React + TypeScript**: Type safety, component reusability
-- **Vite**: Fast development server and build
-- **Tailwind CSS**: Utility-first styling
-- **React Router**: Client-side routing
-- **TanStack Query**: Server state management
-- **React Hook Form + Zod**: Form validation
-- **Monaco Editor**: Code editing
+- Credenciales del panel ≠ credenciales de APIs de usuario.
+- Tokens del panel no otorgan acceso a proyectos de usuario.
+- Tokens de API no otorgan acceso administrativo a Nodum.
+- Tokens de servicio (`NODUM_MODULE_SERVICE_TOKEN`, `NODUM_INFRASTRUCTURE_AGENT_TOKEN`) nunca se persisten en módulos ni aparecen en logs.
 
-### Backend
-- **Java 21 LTS**: Modern Java with long-term support
-- **Spring Boot 3.3**: Opinionated framework with auto-configuration
-- **Spring Data JPA**: Database abstraction
-- **PostgreSQL**: Reliable relational database for internal persistence
-- **Flyway**: Database migration management
-- **SpringDoc OpenAPI**: API documentation
-- **Spring Security**: Authentication and authorization
+### Aislamiento de infraestructura
 
-## Risks and Mitigations
+- Solo `infrastructure-agent` monta `/var/run/docker.sock`.
+- Contenedores de módulos con límites fijos de CPU/memoria/procesos, sin privilegios ni montajes arbitrarios.
+- Shells remotas en red Docker privada por proyecto, usuario sin privilegios, `no-new-privileges`.
+- Gateway con allowlist de hosts y rechazo de destinos privados/loopback por defecto (anti-SSRF).
 
-### Risk 1: Tight Coupling Between Layers
-**Mitigation**: Define explicit interfaces, use dependency injection, avoid direct access to internal implementations
+---
 
-### Risk 2: Module Failure Affecting Core
-**Mitigation**: Isolate module execution, implement circuit breakers, ensure Control Plane independence
+## Stack tecnológico
 
-### Risk 3: Security Vulnerabilities in Dynamic Execution
-**Mitigation**: Validate all configurations, sandbox where possible, deny-by-default policies, audit all operations
+### Frontend (`web/`)
 
-### Risk 4: Configuration Drift
-**Mitigation**: Version all configurations, track active versions, implement validation before publication
+| Tecnología | Uso |
+|---|---|
+| React + TypeScript | UI del panel |
+| Vite | Dev server y build |
+| Tailwind CSS | Estilos utility-first |
+| React Router | Ruteo cliente |
+| TanStack Query | Estado de servidor |
+| xterm.js | Terminal remota |
 
-### Risk 5: Database Schema Conflicts
-**Mitigation**: Separate internal Nodum schema from user project schemas, use explicit schema names, controlled migrations
+### Backend (`back/`, `gateway/`, `kafka-module/`)
 
-### Risk 6: Secret Exposure
-**Mitigation**: Store secrets separately from configurations, never return secrets to frontend, use environment variables or secret managers
+| Tecnología | Uso |
+|---|---|
+| Java 21 LTS | Runtime |
+| Spring Boot 3.3 | Framework |
+| Spring Data JPA + Hibernate | Persistencia |
+| PostgreSQL 16 | Base de datos interna |
+| Flyway | Migraciones |
+| SpringDoc OpenAPI | Documentación API (Swagger UI) |
+| Spring Security | AuthN/AuthZ |
 
-## Next Steps
+### Infraestructura
 
-1. Implement basic HTTP integration between frontend and backend
-2. Add authentication to the Control Plane
-3. Implement project CRUD operations
-4. Design and implement the module registry
-5. Build the API Builder configuration interface
-6. Implement dynamic endpoint execution
+| Componente | Rol |
+|---|---|
+| Docker Compose | Orquestación local del stack |
+| Apache Kafka 3.8.1 (KRaft) | Clúster 3 nodos broker+controller |
+| provectuslabs/kafka-ui | Administración visual de Kafka |
+| Alpine Linux | Imagen base de shells remotas |
+
+---
+
+## Riesgos y mitigaciones
+
+| # | Riesgo | Mitigación |
+|---|---|---|
+| 1 | Acoplamiento entre capas | Interfaces explícitas, inyección de dependencias, sin acceso a implementaciones internas |
+| 2 | Falla de módulo afecta al core | Proveedores remotos para lo crítico, estados de ciclo de vida, circuit breakers |
+| 3 | Vulnerabilidades en ejecución dinámica | Validación de configuraciones, deny-by-default, auditoría, allowlists |
+| 4 | Deriva de configuración | Versionado, versión activa explícita, validación previa a publicación |
+| 5 | Conflictos de esquema de BD | Esquema interno Nodum separado del de proyectos, migraciones controladas |
+| 6 | Exposición de secretos | Secretos fuera de configuraciones/logs/BD, variables de entorno, tokens de servicio separados |
+| 7 | Aislamiento insuficiente de proveedores | Migración progresiva a servicios remotos (gateway/kafka ya lo están) |
+
+---
+
+## Trabajo pendiente
+
+El backlog de funcionalidades futuras (RabbitMQ, APIs dinámicas, TLS, gestor de secretos, etc.) está centralizado en [`TODO.md`](TODO.md).
