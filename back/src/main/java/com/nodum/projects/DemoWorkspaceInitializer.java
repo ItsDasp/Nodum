@@ -27,6 +27,7 @@ public class DemoWorkspaceInitializer {
     private static final String KAFKA_MODULE_NAME = "Eventos de pedidos (Kafka)";
     private static final String AUDIT_KAFKA_MODULE_NAME = "Eventos de auditoría (Kafka)";
     private static final String API_MODULE_NAME = "API de publicaciones";
+    private static final String SHELL_MODULE_NAME = "Shell";
 
     private static final String KAFKA_SCHEMA = """
             {
@@ -190,12 +191,14 @@ public class DemoWorkspaceInitializer {
         Module kafka = findOrCreateKafka(project, owner);
         Module auditKafka = findOrCreateAuditKafka(project, owner);
         Module api = findOrCreateApi(project, owner);
+        Module shell = findOrCreateShell(project, owner);
         ensureContract(kafka, owner, "Evento de pedido", "Esquema JSON Schema del evento publicado en el tema nodum.order-events. Incluye pedidos creados y cancelados.", "1.0.0", KAFKA_SCHEMA, KAFKA_EXAMPLES);
         ensureContract(api, owner, "API REST de publicaciones", "Definición OpenAPI 3.1 de los endpoints GET /posts, GET /posts/{id} y POST /posts, con seguridad Bearer.", "1.0.0", API_SCHEMA, API_EXAMPLES);
 
         startSampleModule(kafka);
         startSampleModule(auditKafka);
         startSampleModule(api);
+        startSampleModule(shell);
     }
 
     private Module findOrCreateKafka(Project project, User owner) {
@@ -238,6 +241,20 @@ public class DemoWorkspaceInitializer {
                         "http-gateway", """
                                 {"public":false,"routes":[{"pathPrefix":"/posts","upstreamUrl":"https://jsonplaceholder.typicode.com"}]}
                                 """));
+    }
+
+    private Module findOrCreateShell(Project project, User owner) {
+        return moduleRepository.findByProjectIdAndOwnerId(project.getId(), owner.getId()).stream()
+                .filter(module -> SHELL_MODULE_NAME.equals(module.getName()))
+                .findFirst()
+                .map(module -> {
+                    module.setDescription("Terminal Linux aislada para inspeccionar los servicios del proyecto.");
+                    module.setConfigurationJson("{}");
+                    return moduleRepository.save(module);
+                })
+                .orElseGet(() -> saveModule(project, owner, SHELL_MODULE_NAME,
+                        "Terminal Linux aislada para inspeccionar los servicios del proyecto.",
+                        "linux-shell", "{}"));
     }
 
     private Module updateDemoKafkaConfiguration(Module module, String description, String configuration) {

@@ -113,9 +113,9 @@ public class DockerModuleAgentService {
         validateProviderInstance(providerId, instanceId);
         InspectContainerResponse existing = findContainer(providerId, instanceId);
         if (existing == null) return create(providerId, instanceId, projectId);
-        if (projectId != null) connectToProjectNetwork(existing.getId(), projectId);
         String state = existing.getState() == null ? null : existing.getState().getStatus();
         if (!"running".equalsIgnoreCase(state)) docker.startContainerCmd(existing.getId()).exec();
+        if (projectId != null) connectToProjectNetwork(existing.getId(), projectId);
         if (SHELL_PROVIDER.equals(providerId) && projectId != null) connectProjectSiblings(projectId);
         return inspect(providerId, instanceId);
     }
@@ -306,10 +306,20 @@ public class DockerModuleAgentService {
     private void connectToProjectNetwork(String containerId, String projectId) {
         ensureProjectNetwork(projectId);
         String networkName = projectNetwork(projectId);
-        try { docker.connectToNetworkCmd().withContainerId(containerId).withNetworkId(networkName)
-                .withContainerNetwork(new com.github.dockerjava.api.model.ContainerNetwork().withAliases(List.of("module-" + containerId.substring(0, 12)))).exec(); }
-        catch (com.github.dockerjava.api.exception.NotFoundException ignored) { }
-        catch (com.github.dockerjava.api.exception.ConflictException ignored) { }
+        InspectContainerResponse inspected = docker.inspectContainerCmd(containerId).exec();
+        var networks = inspected.getNetworkSettings() == null
+                ? null : inspected.getNetworkSettings().getNetworks();
+        if (networks != null && networks.containsKey(networkName)) return;
+        try {
+            docker.connectToNetworkCmd().withContainerId(containerId).withNetworkId(networkName)
+                    .withContainerNetwork(new com.github.dockerjava.api.model.ContainerNetwork()
+                            .withAliases(List.of("module-" + containerId.substring(0, 12))))
+                    .exec();
+        } catch (com.github.dockerjava.api.exception.NotFoundException ignored) {
+            // The container or network disappeared during the operation.
+        } catch (com.github.dockerjava.api.exception.ConflictException ignored) {
+            // Another operation already connected the container to this network.
+        }
     }
 
     private void connectProjectSiblings(String projectId) {
