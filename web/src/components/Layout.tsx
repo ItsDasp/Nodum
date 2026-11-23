@@ -24,7 +24,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <Link to="/" className="brand"><span className="brand-mark">N</span>Nodum</Link>
+        <Link to="/" className="brand"><span className="brand-mark"><img src="/Icon.png" alt="" /></span>Nodum</Link>
         <div className="project-switcher">ESPACIO DE TRABAJO<strong>Mis proyectos</strong></div>
         <span className="nav-label">Plataforma</span>
         <nav className="nav-list" aria-label="Navegación principal">
@@ -42,7 +42,6 @@ export function Layout({ children }: LayoutProps) {
       <div className="main-area">
         <header className="topbar">
           <span className="breadcrumb">Plataforma <span aria-hidden="true">/</span> {pageLabel}</span>
-          <div className="top-actions"><span className="status-dot ok">Entorno local</span></div>
         </header>
         <main className="content">{children}</main>
       </div>

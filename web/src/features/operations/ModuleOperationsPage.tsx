@@ -44,11 +44,11 @@ function ShellTerminal({ projectId, module }: { projectId: string; module: Modul
     const terminal = new Terminal({
       cursorBlink: true, scrollback: 5000, convertEol: true,
       fontFamily: '"Cascadia Code", "SFMono-Regular", Consolas, monospace', fontSize: 13,
-      theme: { background: '#0a0f0c', foreground: '#dce7df', cursor: '#73e0a1', selectionBackground: '#244634', black: '#111713', green: '#69d79c', brightGreen: '#92efb7', red: '#ff7777', yellow: '#ecc777', blue: '#83adff', magenta: '#cf9cff', cyan: '#74d9d1', white: '#dce7df' },
+      theme: { background: '#0d0a16', foreground: '#e9e4f8', cursor: '#a78bfa', selectionBackground: '#3b2a63', black: '#0f0b18', green: '#69d79c', brightGreen: '#92efb7', red: '#ff7777', yellow: '#ecc777', blue: '#83adff', magenta: '#cf9cff', cyan: '#74d9d1', white: '#e9e4f8' },
     });
     terminal.loadAddon(fit); terminal.open(mountRef.current); terminalRef.current = terminal;
     terminal.onData((data) => { if (socketRef.current?.readyState === WebSocket.OPEN) socketRef.current.send(data); });
-    terminal.writeln('\x1b[32mNodum Linux · /workspace\x1b[0m');
+    terminal.writeln('\x1b[35mNodum Linux · /workspace\x1b[0m');
     terminal.writeln('\x1b[90mAbriendo una sesión interactiva segura…\x1b[0m\r\n');
     const connect = async () => {
       try {
@@ -158,11 +158,11 @@ export function ModuleOperationsPage({ mode }: { mode: Mode }) {
           </>}
         </div>
         {mode === 'logs' ? <>
-          <div className="section-head"><span style={{ color: '#68716b', fontSize: 12 }}>{filteredLines.length} de {lines.length} líneas · se actualiza cada 5 s</span><button className="btn" disabled={!selected || logs.isFetching} onClick={() => void logs.refetch()}>{logs.isFetching ? 'Actualizando…' : 'Actualizar'}</button></div>
+          <div className="section-head"><span style={{ color: 'var(--muted)', fontSize: 12 }}>{filteredLines.length} de {lines.length} líneas · se actualiza cada 5 s</span><button className="btn" disabled={!selected || logs.isFetching} onClick={() => void logs.refetch()}>{logs.isFetching ? 'Actualizando…' : 'Actualizar'}</button></div>
           {logs.isError ? <div role="alert" className="surface empty-state">{logs.error.message || 'No se pudieron obtener los registros.'}</div>
-            : <pre className="mono" style={{ minHeight: 320, maxHeight: '62vh', overflow: 'auto', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', padding: 16, borderRadius: 8, background: '#17211c', color: '#d4e2d8', fontSize: 12 }}>{logs.isLoading ? 'Cargando registros…' : filteredLines.join('\n') || 'No hay líneas que coincidan con estos filtros.'}</pre>}
+            : <pre className="mono" style={{ minHeight: 320, maxHeight: '62vh', overflow: 'auto', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', padding: 16, borderRadius: 8, background: 'var(--panel)', color: '#ddd6f5', fontSize: 12 }}>{logs.isLoading ? 'Cargando registros…' : filteredLines.join('\n') || 'No hay líneas que coincidan con estos filtros.'}</pre>}
           {logs.data?.truncated && <small>La salida consultada alcanzó el límite de 32 KiB del backend.</small>}
-          <small style={{ display: 'block', marginTop: 8, color: '#818a83' }}>Los filtros de nivel, fecha y texto se aplican en el navegador a las líneas recibidas.</small>
+          <small style={{ display: 'block', marginTop: 8, color: 'var(--muted-2)' }}>Los filtros de nivel, fecha y texto se aplican en el navegador a las líneas recibidas.</small>
         </> : selected ? <ShellTerminal key={selected.module.id} projectId={selected.project.id} module={selected.module} /> : <div className="surface empty-state">Este proyecto no tiene módulos compatibles.</div>}
       </>}
   </Layout>;

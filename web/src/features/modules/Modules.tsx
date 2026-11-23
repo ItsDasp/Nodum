@@ -73,13 +73,13 @@ export function Modules() {
   return <Layout>
     <div style={{ marginBottom: 18 }}><Link to="/projects" className="breadcrumb">← Proyectos</Link></div>
     <div className="page-heading"><div><h1>Módulos</h1><p>Instancias y capacidades conectadas a este proyecto.</p></div><button className="btn btn-primary" onClick={() => setOpen((value) => !value)}>{open ? 'Cancelar' : '+ Añadir módulo'}</button></div>
-    <div className="surface" style={{ marginBottom: 18, padding: '13px 16px', color: '#68716b', fontSize: 12 }}>
+    <div className="surface" style={{ marginBottom: 18, padding: '13px 16px', color: 'var(--muted)', fontSize: 12 }}>
       Los proveedores instalados en el backend aparecen aquí. La puerta de enlace solo accede a los hosts autorizados en <code>NODUM_GATEWAY_ALLOWED_HOSTS</code>. No guardes contraseñas ni tokens dentro de la configuración del módulo.
     </div>
-    {create.isError && <p role="alert" style={{ color: '#a24842', fontSize: 13 }}>{create.error.message || 'No se pudo crear el módulo.'}</p>}
-    {remove.isError && <p role="alert" style={{ color: '#a24842', fontSize: 13 }}>No se pudo eliminar el módulo.</p>}
-    {lifecycle.isError && <p role="alert" style={{ color: '#a24842', fontSize: 13 }}>{lifecycle.error.message || 'No se pudo cambiar el estado del módulo.'}</p>}
-    {execute.isError && <p role="alert" style={{ color: '#a24842', fontSize: 13 }}>{execute.error.message || 'Falló la acción del módulo.'}</p>}
+    {create.isError && <p role="alert" style={{ color: 'var(--danger)', fontSize: 13 }}>{create.error.message || 'No se pudo crear el módulo.'}</p>}
+    {remove.isError && <p role="alert" style={{ color: 'var(--danger)', fontSize: 13 }}>No se pudo eliminar el módulo.</p>}
+    {lifecycle.isError && <p role="alert" style={{ color: 'var(--danger)', fontSize: 13 }}>{lifecycle.error.message || 'No se pudo cambiar el estado del módulo.'}</p>}
+    {execute.isError && <p role="alert" style={{ color: 'var(--danger)', fontSize: 13 }}>{execute.error.message || 'Falló la acción del módulo.'}</p>}
 
     {open && <form className="surface surface-pad" style={{ display: 'grid', gap: 14, marginBottom: 18 }} onSubmit={(event) => {
       event.preventDefault();
@@ -94,29 +94,29 @@ export function Modules() {
       <h2 className="section-title">Añadir módulo</h2>
       <div><label className="field-label" htmlFor="provider">Proveedor instalado</label><select id="provider" className="field" value={providerId} onChange={(event) => { const id = event.target.value; setProviderId(id); setConfigurationJson(configurationExamples[id] ?? '{}'); }}><option value="">Solo metadatos (sin ejecución)</option>{catalog.data?.map((provider) => <option value={provider.id} key={provider.id}>{provider.name} · v{provider.version}</option>)}</select>
         {catalog.isError && <small role="alert">No se pudo cargar el catálogo de proveedores.</small>}
-        {providerId && <p style={{ margin: '6px 0 0', color: '#818a83', fontSize: 11 }}>{catalog.data?.find((provider) => provider.id === providerId)?.description} Capacidades: {catalog.data?.find((provider) => provider.id === providerId)?.capabilities.join(', ')}.</p>}
+        {providerId && <p style={{ margin: '6px 0 0', color: 'var(--muted-2)', fontSize: 11 }}>{catalog.data?.find((provider) => provider.id === providerId)?.description} Capacidades: {catalog.data?.find((provider) => provider.id === providerId)?.capabilities.join(', ')}.</p>}
       </div>
       <div><label className="field-label" htmlFor="module-name">Nombre</label><input id="module-name" className="field" value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} placeholder="p. ej. API de medicamentos" /></div>
       <div><label className="field-label" htmlFor="module-description">Descripción</label><textarea id="module-description" className="field" value={description} onChange={(event) => setDescription(event.target.value)} rows={2} maxLength={1000} /></div>
       {!providerId && <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}><div><label className="field-label" htmlFor="module-path">Prefijo de ruta</label><input id="module-path" className="field mono" value={basePath} onChange={(event) => setBasePath(event.target.value)} required pattern="/[A-Za-z0-9/_{}-]*" /></div><div><label className="field-label" htmlFor="module-version">Versión</label><input id="module-version" className="field" value={version} onChange={(event) => setVersion(event.target.value)} /></div></div>}
       {providerId === 'kafka-messaging' && <div style={{ display: 'grid', gap: 12 }}>
-        <p style={{ margin: 0, color: '#68716b', fontSize: 12 }}>Configura el clúster, el topic y el consumidor. Si el topic no existe, Kafka lo crea con las particiones y réplicas indicadas. Los brokers se separan con comas.</p>
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 12 }}>Configura el clúster, el topic y el consumidor. Si el topic no existe, Kafka lo crea con las particiones y réplicas indicadas. Los brokers se separan con comas.</p>
         <div><label className="field-label" htmlFor="kafka-brokers">Brokers</label><input id="kafka-brokers" className="field mono" value={kafkaConfig.bootstrapServers} onChange={(event) => setKafkaConfig({ ...kafkaConfig, bootstrapServers: event.target.value })} required placeholder="kafka:9092, kafka-2:9092" /><small>Usa nombres y puertos accesibles desde Nodum; dentro de Compose, el broker local es kafka:9092.</small></div>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
           <div><label className="field-label" htmlFor="kafka-topic">Topic</label><input id="kafka-topic" className="field" value={kafkaConfig.topic} onChange={(event) => setKafkaConfig({ ...kafkaConfig, topic: event.target.value })} required pattern="[A-Za-z0-9._-]{1,249}" /></div>
           <div><label className="field-label" htmlFor="kafka-topic-partitions">Particiones</label><input id="kafka-topic-partitions" className="field" type="number" min="1" max="1000" value={kafkaConfig.partitions} onChange={(event) => setKafkaConfig({ ...kafkaConfig, partitions: event.target.value })} required /></div>
           <div><label className="field-label" htmlFor="kafka-topic-replicas">Factor de réplicas</label><input id="kafka-topic-replicas" className="field" type="number" min="1" value={kafkaConfig.replicationFactor} onChange={(event) => setKafkaConfig({ ...kafkaConfig, replicationFactor: event.target.value })} required /></div>
         </div>
-        <small style={{ color: '#818a83' }}>Cada réplica se aloja en un broker distinto. Con un único broker, usa factor 1. Si el topic ya existe, su número de particiones y réplicas no se modifica desde esta configuración.</small>
+        <small style={{ color: 'var(--muted-2)' }}>Cada réplica se aloja en un broker distinto. Con un único broker, usa factor 1. Si el topic ya existe, su número de particiones y réplicas no se modifica desde esta configuración.</small>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
           <div><label className="field-label" htmlFor="kafka-group">Grupo de consumidores</label><input id="kafka-group" className="field" value={kafkaConfig.groupId} onChange={(event) => setKafkaConfig({ ...kafkaConfig, groupId: event.target.value })} required /></div>
           <div><label className="field-label" htmlFor="kafka-default-partition">Partición fija (opcional)</label><input id="kafka-default-partition" className="field" type="number" min="0" value={kafkaConfig.partition} onChange={(event) => setKafkaConfig({ ...kafkaConfig, partition: event.target.value })} placeholder="Automática" /></div>
         </div>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}><input type="checkbox" checked={kafkaConfig.consume} onChange={(event) => setKafkaConfig({ ...kafkaConfig, consume: event.target.checked })} /> Consumir mensajes con este grupo</label>
-        <p style={{ margin: 0, color: '#68716b', fontSize: 11 }}>Una partición conserva su propio orden y offsets. Sin partición fija, Kafka distribuye los mensajes; también puedes indicar una partición en cada acción de publicación. Los offsets confirmados pertenecen al grupo.</p>
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 11 }}>Una partición conserva su propio orden y offsets. Sin partición fija, Kafka distribuye los mensajes; también puedes indicar una partición en cada acción de publicación. Los offsets confirmados pertenecen al grupo.</p>
       </div>}
-      {providerId && providerId !== 'kafka-messaging' && <div><label className="field-label" htmlFor="module-config">Configuración JSON</label><textarea id="module-config" className="field mono" value={configurationJson} onChange={(event) => { setConfigurationJson(event.target.value); setFormError(''); }} rows={8} spellCheck={false} required /><p style={{ color: '#818a83', fontSize: 11 }}>La configuración se valida antes de iniciar el proveedor.</p></div>}
-      {formError && <p role="alert" style={{ margin: 0, color: '#a24842', fontSize: 12 }}>{formError}</p>}
+      {providerId && providerId !== 'kafka-messaging' && <div><label className="field-label" htmlFor="module-config">Configuración JSON</label><textarea id="module-config" className="field mono" value={configurationJson} onChange={(event) => { setConfigurationJson(event.target.value); setFormError(''); }} rows={8} spellCheck={false} required /><p style={{ color: 'var(--muted-2)', fontSize: 11 }}>La configuración se valida antes de iniciar el proveedor.</p></div>}
+      {formError && <p role="alert" style={{ margin: 0, color: 'var(--danger)', fontSize: 12 }}>{formError}</p>}
       <div><button className="btn btn-primary" disabled={create.isPending || !name.trim()}>{create.isPending ? 'Guardando…' : 'Añadir módulo'}</button></div>
     </form>}
 
@@ -126,12 +126,12 @@ export function Modules() {
       return <div key={module.id} className="list-row" style={{ padding: '16px 20px', alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <strong style={{ display: 'block', fontSize: 14, fontWeight: 600 }}>{module.name}</strong>
-          <span style={{ display: 'block', marginTop: 4, color: '#818a83', fontSize: 12 }}>{module.description || 'Sin descripción'}{provider ? ` · ${provider.name}` : module.providerId ? ` · Proveedor ${module.providerId} no instalado` : ' · Solo metadatos'}</span>
-          <span className="mono" style={{ display: 'block', marginTop: 7, color: '#78827b', fontSize: 11 }}>{provider ? `Proveedor v${module.providerVersion}` : `${module.basePath} · v${module.version || '1.0.0'}`}</span>
+          <span style={{ display: 'block', marginTop: 4, color: 'var(--muted-2)', fontSize: 12 }}>{module.description || 'Sin descripción'}{provider ? ` · ${provider.name}` : module.providerId ? ` · Proveedor ${module.providerId} no instalado` : ' · Solo metadatos'}</span>
+          <span className="mono" style={{ display: 'block', marginTop: 7, color: 'var(--muted)', fontSize: 11 }}>{provider ? `Proveedor v${module.providerVersion}` : `${module.basePath} · v${module.version || '1.0.0'}`}</span>
           <span className={`status-dot ${module.lifecycleState === 'RUNNING' ? 'ok' : module.lifecycleState === 'ERROR' ? 'error' : ''}`} style={{ marginTop: 9 }}>{lifecycleLabels[module.lifecycleState] || module.lifecycleState}</span>
-          {module.providerId === 'http-gateway' && module.lifecycleState === 'RUNNING' && <span className="mono" style={{ display: 'block', marginTop: 7, color: '#78827b', fontSize: 10 }}>Ruta activa: /api/v1/runtime/gateway/{projectId}/{module.id}/&lt;pathPrefix&gt;</span>}
-          {module.lifecycleError && <p style={{ color: '#a24842', fontSize: 11 }}>{module.lifecycleError}</p>}
-          {module.runtimeError && <p style={{ color: '#a24842', fontSize: 11 }}>{readableRuntimeError(module.runtimeError)}</p>}
+          {module.providerId === 'http-gateway' && module.lifecycleState === 'RUNNING' && <span className="mono" style={{ display: 'block', marginTop: 7, color: 'var(--muted)', fontSize: 10 }}>Ruta activa: /api/v1/runtime/gateway/{projectId}/{module.id}/&lt;pathPrefix&gt;</span>}
+          {module.lifecycleError && <p style={{ color: 'var(--danger)', fontSize: 11 }}>{module.lifecycleError}</p>}
+          {module.runtimeError && <p style={{ color: 'var(--danger)', fontSize: 11 }}>{readableRuntimeError(module.runtimeError)}</p>}
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {executable && <button className="btn" disabled={lifecycle.isPending || module.lifecycleState === 'RUNNING'} onClick={() => lifecycle.mutate({ module, action: 'start' })}>Iniciar</button>}
@@ -147,7 +147,7 @@ export function Modules() {
       <div className="section-head"><h2 id="action-title" className="section-title">Probar {actionModule.name}</h2><button className="btn" onClick={() => setActionModule(null)}>Cerrar</button></div>
       {actionModule.providerId === 'kafka-messaging' && <div style={{ marginBottom: 10 }}><label className="field-label" htmlFor="module-action">Acción</label><select className="field" id="module-action" value={actionName} onChange={(event) => setActionName(event.target.value)}><option value="publish">Publicar evento</option><option value="read">Leer mensajes consumidos</option></select></div>}
       <label className="field-label" htmlFor="module-action-input">{actionModule.providerId === 'kafka-messaging' ? 'Datos del mensaje (JSON)' : 'Solicitud (JSON)'}</label><textarea id="module-action-input" className="field mono" rows={9} value={actionInput} onChange={(event) => setActionInput(event.target.value)} spellCheck={false} />
-      {actionModule.providerId === 'kafka-messaging' && actionName === 'publish' && <small style={{ display: 'block', marginTop: 6, color: '#818a83' }}>La partición es opcional. Si la indicas, debe existir en el topic; el offset se asigna automáticamente dentro de esa partición.</small>}
+      {actionModule.providerId === 'kafka-messaging' && actionName === 'publish' && <small style={{ display: 'block', marginTop: 6, color: 'var(--muted-2)' }}>La partición es opcional. Si la indicas, debe existir en el topic; el offset se asigna automáticamente dentro de esa partición.</small>}
       {actionOutput && <pre className="mono" style={{ maxHeight: 220, overflow: 'auto', whiteSpace: 'pre-wrap', fontSize: 11 }}>{actionOutput}</pre>}
       <button className="btn btn-primary" style={{ marginTop: 10 }} disabled={execute.isPending} onClick={submitAction}>{execute.isPending ? 'Ejecutando…' : 'Ejecutar'}</button>
     </div>}
