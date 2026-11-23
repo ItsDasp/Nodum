@@ -6,3 +6,4 @@ ALTER TABLE modules
     ADD COLUMN lifecycle_error TEXT;
 
 CREATE INDEX idx_modules_provider_state ON modules(provider_id, lifecycle_state);
+

@@ -24,14 +24,14 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
       <div className="w-full max-w-sm p-8">
-        <h1 className="text-3xl font-semibold text-gray-900 dark:text-white mb-2">Nodum</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Entorno visual para diseñar sistemas backend.</p>
+        <h1 className="text-3xl font-semibold mb-2" style={{ color: 'var(--text)' }}>Nodum</h1>
+        <p className="text-sm mb-8" style={{ color: 'var(--muted-2)' }}>Entorno visual para diseñar sistemas backend.</p>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="username" className="block text-sm font-medium mb-2" style={{ color: 'var(--muted)' }}>
                 Usuario
             </label>
             <input
@@ -39,13 +39,13 @@ export function Login() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded text-gray-900 dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-gray-600"
+              className="field"
               placeholder="Tu usuario"
             />
           </div>
           
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="password" className="block text-sm font-medium mb-2" style={{ color: 'var(--muted)' }}>
                 Contraseña
             </label>
             <input
@@ -56,18 +56,19 @@ export function Login() {
                 setPassword(e.target.value);
                 setError('');
               }}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded text-gray-900 dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-gray-600"
+              className="field"
               placeholder="Tu contraseña"
             />
             {error && (
-              <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>
+              <p className="mt-2 text-sm" style={{ color: 'var(--danger)' }}>{error}</p>
             )}
           </div>
           
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 py-2 px-4 rounded hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50"
+            className="btn btn-primary w-full"
+            style={{ minHeight: 40 }}
           >
             {loading ? 'Ingresando…' : 'Iniciar sesión'}
           </button>

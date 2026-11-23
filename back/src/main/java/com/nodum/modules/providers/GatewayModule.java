@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -32,12 +33,15 @@ public class GatewayModule implements ModulePlugin {
     private static final Set<String> REQUEST_HEADERS = Set.of("accept", "content-type", "if-match", "if-none-match", "x-request-id");
     private final ObjectMapper objectMapper;
     private final Set<String> allowedHosts;
+    private final boolean allowPrivateAddresses;
     private final HttpClient httpClient;
     private final ConcurrentMap<UUID, GatewayConfig> instances = new ConcurrentHashMap<>();
 
     public GatewayModule(ObjectMapper objectMapper,
-                         @Value("${nodum.gateway.allowed-hosts:}") String allowedHosts) {
+                         @Value("${nodum.gateway.allowed-hosts:}") String allowedHosts,
+                         @Value("${nodum.gateway.allow-private-addresses:false}") boolean allowPrivateAddresses) {
         this.objectMapper = objectMapper;
+        this.allowPrivateAddresses = allowPrivateAddresses;
         this.allowedHosts = java.util.Arrays.stream(allowedHosts.split(","))
                 .map(String::trim).filter(value -> !value.isBlank()).map(String::toLowerCase).collect(java.util.stream.Collectors.toUnmodifiableSet());
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3))
@@ -47,7 +51,7 @@ public class GatewayModule implements ModulePlugin {
     @Override
     public ModuleDescriptor descriptor() {
         return new ModuleDescriptor("http-gateway", "1.0.0", 1, "API Gateway",
-                "Enruta solicitudes HTTP a upstreams aprobados.", Set.of("gateway.routes", "gateway.proxy", "gateway.health"));
+                "Enruta solicitudes HTTP a destinos autorizados.", Set.of("gateway.routes", "gateway.proxy", "gateway.health"));
     }
 
     @Override
@@ -74,11 +78,29 @@ public class GatewayModule implements ModulePlugin {
                         || upstream.getUserInfo() != null || upstream.getQuery() != null || upstream.getFragment() != null) {
                     return ModuleValidation.invalid("upstreamUrl debe ser una URL HTTP(S) base, sin credenciales ni query.");
                 }
-                if (!allowedHosts.contains(upstream.getHost().toLowerCase())) return ModuleValidation.invalid("El host upstream no está en NODUM_GATEWAY_ALLOWED_HOSTS.");
+                String host = upstream.getHost().toLowerCase();
+                if (!allowedHosts.contains(host)) return ModuleValidation.invalid("El host upstream no está en NODUM_GATEWAY_ALLOWED_HOSTS.");
+                if (!isSafeUpstreamHost(host)) return ModuleValidation.invalid("El host upstream resuelve a una dirección local o privada.");
             }
             return ModuleValidation.ok();
         } catch (Exception invalid) {
             return ModuleValidation.invalid("La configuración Gateway no es JSON válido.");
+        }
+    }
+
+    private boolean isSafeUpstreamHost(String host) {
+        if (allowPrivateAddresses) return true;
+        try {
+            for (InetAddress address : InetAddress.getAllByName(host)) {
+                if (address.isAnyLocalAddress() || address.isLoopbackAddress()
+                        || address.isLinkLocalAddress() || address.isSiteLocalAddress()
+                        || address.isMulticastAddress()) return false;
+                byte[] bytes = address.getAddress();
+                if (bytes.length == 16 && ((bytes[0] & 0xff) == 0xfc || (bytes[0] & 0xff) == 0xfd)) return false;
+            }
+            return true;
+        } catch (java.net.UnknownHostException unresolved) {
+            return false;
         }
     }
 
@@ -139,7 +161,7 @@ public class GatewayModule implements ModulePlugin {
         URI target;
         try {
             String basePath = route.upstream.getRawPath() == null ? "" : route.upstream.getRawPath().replaceAll("/$", "");
-            String rawPath = basePath + suffix;
+            String rawPath = basePath.isBlank() ? path : basePath + path;
             String decodedPath = java.net.URLDecoder.decode(rawPath.replace("+", "%2B"), StandardCharsets.UTF_8);
             for (String segment : decodedPath.split("/")) if ("..".equals(segment)) throw new IllegalArgumentException("Invalid route path");
             String rawTarget = route.upstream.getScheme() + "://" + route.upstream.getRawAuthority() + rawPath

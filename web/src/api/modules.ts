@@ -13,6 +13,7 @@ export interface Module {
   configurationJson: string;
   lifecycleState: 'CONFIGURED' | 'STARTING' | 'RUNNING' | 'STOPPED' | 'ERROR';
   lifecycleError: string | null;
+  runtimeError: string | null;
 }
 
 export interface ModuleProvider {
@@ -22,6 +23,14 @@ export interface ModuleProvider {
   name: string;
   description: string;
   capabilities: string[];
+}
+
+export interface ModuleRuntimeResult {
+  output: string;
+  exitCode: number | null;
+  timedOut: boolean;
+  truncated: boolean;
+  workingDirectory?: string | null;
 }
 
 export interface CreateModuleRequest {
@@ -78,4 +87,25 @@ export async function validateModule(projectId: string, moduleId: string): Promi
 
 export async function getModuleHealth(projectId: string, moduleId: string): Promise<{ state: string; message: string }> {
   return get(`/projects/${projectId}/modules/${moduleId}/health`);
+}
+
+export async function getModuleLogs(projectId: string, moduleId: string, tail = 200): Promise<ModuleRuntimeResult> {
+  return get(`/projects/${projectId}/modules/${moduleId}/logs?tail=${tail}`);
+}
+
+export async function runModuleShellCommand(projectId: string, moduleId: string, command: string, workingDirectory = '/app'): Promise<ModuleRuntimeResult> {
+  return post(`/projects/${projectId}/modules/${moduleId}/shell`, { command, workingDirectory });
+}
+
+export async function createShellSessionTicket(projectId: string, moduleId: string): Promise<string> {
+  const response = await post<{ ticket: string }>(`/projects/${projectId}/modules/${moduleId}/shell/session`, {});
+  return response.ticket;
+}
+
+export function shellWebSocketUrl(ticket: string): string {
+  const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+  const url = new URL(`${base.replace(/\/$/, '')}/shell/stream`);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  url.searchParams.set('ticket', ticket);
+  return url.toString();
 }

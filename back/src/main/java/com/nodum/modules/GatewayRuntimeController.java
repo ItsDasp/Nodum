@@ -27,14 +27,12 @@ public class GatewayRuntimeController {
 
     private final ModuleRepository moduleRepository;
     private final ModuleLifecycleService lifecycleService;
-    private final GatewayModule gatewayModule;
     private final ObjectMapper objectMapper;
 
     public GatewayRuntimeController(ModuleRepository moduleRepository, ModuleLifecycleService lifecycleService,
-                                    GatewayModule gatewayModule, ObjectMapper objectMapper) {
+                                    ObjectMapper objectMapper) {
         this.moduleRepository = moduleRepository;
         this.lifecycleService = lifecycleService;
-        this.gatewayModule = gatewayModule;
         this.objectMapper = objectMapper;
     }
 
@@ -47,12 +45,19 @@ public class GatewayRuntimeController {
                 .filter(candidate -> candidate.getProject().getId().equals(projectId))
                 .filter(candidate -> "http-gateway".equals(candidate.getProviderId()))
                 .orElseThrow(() -> new GatewayRuntimeException(HttpStatus.NOT_FOUND, "Gateway module not found"));
-        if (!"RUNNING".equals(module.getLifecycleState()) || !gatewayModule.isRunning(moduleId)) {
+        if (!"RUNNING".equals(module.getLifecycleState())
+                || !"RUNNING".equals(module.getDesiredState())) {
             throw new GatewayRuntimeException(HttpStatus.SERVICE_UNAVAILABLE, "Gateway module is not running");
         }
         boolean authenticated = authentication != null && authentication.isAuthenticated()
                 && !"anonymousUser".equals(authentication.getPrincipal());
-        if (!gatewayModule.isPublic(moduleId) && !authenticated) {
+        boolean publicIngress;
+        try {
+            publicIngress = objectMapper.readTree(module.getConfigurationJson()).path("public").asBoolean(false);
+        } catch (IOException invalidConfiguration) {
+            publicIngress = false;
+        }
+        if (!publicIngress && !authenticated) {
             throw new GatewayRuntimeException(HttpStatus.UNAUTHORIZED, "This Gateway route requires a panel token");
         }
 

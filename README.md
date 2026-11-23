@@ -1,152 +1,160 @@
-# Nodum
+<div align="center">
 
-A modular platform for building, configuring, executing, testing, and managing backend systems visually.
+<a href="https://instagram.com/xidasp">
+  <img src="https://i.imgur.com/DqvcxcH.png" alt="Banner" style="width: 200%; max-width: 3048px;">
+</a>
 
-## Project Structure
+**Plataforma modular para diseñar, configurar, ejecutar y administrar sistemas backend de forma visual.**
 
-```
-nodum/
-├── web/                       # Frontend TypeScript (React + Vite)
-│   ├── src/
-│   │   ├── app/              # Application setup
-│   │   ├── routes/           # Route definitions
-│   │   ├── components/       # UI components
-│   │   ├── features/         # Feature modules
-│   │   ├── api/              # API client
-│   │   ├── hooks/            # Custom hooks
-│   │   └── types/            # TypeScript types
-│   ├── package.json
-│   └── vite.config.ts
-├── back/                      # Backend Java (Spring Boot)
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/nodum/
-│   │   │   │   ├── identity/      # User authentication
-│   │   │   │   ├── projects/      # Project management
-│   │   │   │   ├── apis/          # API definitions
-│   │   │   │   ├── schemas/       # Schema management
-│   │   │   │   ├── runtime/       # Dynamic execution
-│   │   │   │   ├── persistence/   # Database adapters
-│   │   │   │   ├── modules/       # Module implementations
-│   │   │   │   ├── security/      # Security policies
-│   │   │   │   ├── publishing/    # Version control
-│   │   │   │   ├── operations/    # Business operations
-│   │   │   │   ├── observability/ # Logging and metrics
-│   │   │   │   └── shared/        # Shared utilities
-│   │   │   └── resources/
-│   │   └── test/
-│   └── pom.xml
-├── docs/                      # Documentation
-├── docker-compose.yml          # Local PostgreSQL
-└── README.md
-```
+[![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](back/pom.xml)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-6DB33F?logo=springboot&logoColor=white)](back/pom.xml)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](web/package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](web/package.json)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](web/package.json)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
+[![License](https://img.shields.io/badge/License-Proprietary-lightgrey)](#)
 
-## Development
+</div>
 
-### Prerequisites
+---
 
-- Node.js 18+
-- Java 21
-- Maven 3.8+
-- Docker (for full stack or PostgreSQL only)
+## ¿Qué es Nodum?
 
-### Option 1: Full Stack with Docker Compose
+Nodum es una plataforma de **plano de control** que permite crear proyectos backend completos desde una interfaz visual: definir módulos (Kafka, Gateway HTTP, Shell Linux), configurar su ciclo de vida, publicar contratos de API, probar endpoints y operar logs y terminales remotas, todo sin escribir infraestructura a mano.
+
+> [!NOTE]
+> Este es un prototipo funcional en desarrollo activo. La arquitectura está documentada en [`docs/architecture.md`](docs/architecture.md); las funcionalidades futuras y pendientes están centralizadas en [`docs/TODO.md`](docs/TODO.md).
+
+## Características
+
+- **Panel visual** con autenticación JWT para gestionar proyectos, módulos y contratos.
+- **SPI de módulos**: proveedores confiables compilados en el backend (`ModulePlugin`) con catálogo, validación de configuración y ciclo de vida persistido.
+- **Proveedor Kafka** (`kafka-messaging`): publicación/consumo de mensajes, administración de topics, grupos, offsets y lag desde el panel.
+- **Proveedor Gateway HTTP** (`http-gateway`): proxy a upstreams con allowlist de hosts, límites de tamaño/tiempo y protección SSRF.
+- **Shell Linux remota**: terminal interactiva por WebSocket con PTY, ejecutada en contenedores Alpine aislados por proyecto.
+- **Clúster Kafka KRaft** de 3 nodos (broker + controller) levantado automáticamente con Compose.
+- **Pruebas de API** desde el navegador y visor de logs en tiempo real.
+- **Infraestructura como servicio**: los módulos se ejecutan como contenedores gestionados por un agente dedicado con el socket de Docker.
+
+## Inicio rápido
+
+### Requisitos previos
+
+| Requisito | Versión |
+|---|---|
+| Docker + Docker Compose | reciente |
+| Node.js | 18+ (solo desarrollo del frontend) |
+| Java | 21 (solo desarrollo del backend) |
+| Maven | 3.8+ (solo desarrollo del backend) |
+
+### 1. Configurar el entorno
 
 ```bash
-# Prepare local credentials once. Keep .env private and change the example values.
 cp .env.example .env
+```
 
-# Build and run all services (postgres, back, web)
+Edita `.env` y completa todos los valores vacíos. Genera secretos seguros:
+
+```bash
+openssl rand -hex 32  # JWT_SECRET
+openssl rand -hex 24  # NODUM_ADMIN_PASSWORD
+```
+
+> [!IMPORTANT]
+> `.env` está ignorado por Git. **Nunca** subas credenciales reales al repositorio.
+
+### 2. Levantar el stack completo
+
+```bash
 docker compose up -d --build
-
-# View logs
-docker compose logs -f
-
-# Stop all services
-docker compose down
-
-# Stop and remove volumes
-docker compose down -v
+docker compose logs -f   # seguir el arranque
 ```
 
-Access:
-- Frontend: http://localhost:5173
-- Backend: http://localhost:8080
-- Swagger UI: http://localhost:8080/swagger-ui.html
+### 3. Acceder
 
-Kafka is optional. Start its local broker with `docker compose --profile messaging up -d kafka`. Configure a module with `kafka:9092` when the backend runs in Compose, or `localhost:9094` when the backend runs directly on the host.
+| Servicio | URL |
+|---|---|
+| Panel web | http://localhost:5173 |
+| API REST | http://localhost:8080/api/v1 |
+| Swagger UI | http://localhost:8080/swagger-ui.html |
+| Kafka UI | http://localhost:8085 |
 
-Gateway routes are disabled until an operator allowlists target hosts. Set `NODUM_GATEWAY_ALLOWED_HOSTS` in the environment used by Compose (for example, the root `.env` file) to the exact service hostnames the Gateway may reach. Each route request is capped at 1 MiB and 8 seconds, redirects are not followed, and the module has a 120 requests per minute in-memory limit. The runtime route requires a panel JWT unless that module configuration explicitly sets `public: true`.
+Al primer inicio, Nodum crea automáticamente el proyecto de demostración **"Tienda de demostración"** con un módulo Kafka operativo, un Gateway HTTP y contratos de ejemplo.
 
-### Option 2: Local Development
-
-#### Frontend (/web)
+### Comandos útiles
 
 ```bash
-cd web
-npm install
-npm run dev
+docker compose ps              # estado de los servicios
+docker compose logs -f back    # logs del backend
+docker compose down            # detener (conserva datos)
+docker compose down -v         # detener y BORRAR todos los datos locales
 ```
 
-The frontend runs on http://localhost:5173 by default.
+## Estructura del repositorio
 
-#### Backend (/back)
-
-```bash
-# Start PostgreSQL only (from the repository root)
-docker compose --env-file .env up -d postgres
-
-cd back
-mvn spring-boot:run
+```text
+nodum/
+├── back/                      # Backend: Java 21 + Spring Boot 3.3
+│   ├── src/main/java/com/nodum/
+│   │   ├── identity/          # Autenticación JWT y usuarios
+│   │   ├── projects/          # CRUD de proyectos
+│   │   ├── modules/           # SPI de proveedores y ciclo de vida
+│   │   ├── runtime/           # Runtime dinámico y gateway
+│   │   ├── persistence/       # Adaptadores JPA/PostgreSQL
+│   │   ├── observability/     # Logs y métricas
+│   │   └── shared/            # Utilidades compartidas
+│   ├── Dockerfile
+│   └── pom.xml
+├── web/                       # Frontend: React + TypeScript + Vite
+│   ├── src/features/          # auth, dashboard, projects, modules,
+│   │                          # contracts, testing, operations
+│   ├── Dockerfile
+│   └── package.json
+├── gateway/                   # Servicio Gateway remoto (Spring Boot)
+├── kafka-module/              # Servicio Kafka remoto (Spring Boot)
+├── infrastructure-agent/      # Agente Docker (único con acceso al socket)
+├── shell-module/              # Imagen Alpine para shells remotas
+├── docs/                      # Documentación técnica
+├── docker-compose.yml         # Stack completo (11 servicios)
+└── .env.example               # Plantilla de configuración
 ```
 
-The backend runs on http://localhost:8080 by default.
+## Documentación
 
-## Authentication Configuration
+| Documento | Contenido |
+|---|---|
+| [docs/operation.md](docs/operation.md) | **Guía operativa completa**: arranque, autenticación, Gateway, agente de infraestructura, Kafka remoto, Shell Linux, recuperación de contraseña |
+| [docs/architecture.md](docs/architecture.md) | Arquitectura de tres planos, SPI de módulos, seguridad, riesgos y estado de implementación |
+| [docs/modules.md](docs/modules.md) | Cómo implementar un nuevo proveedor de módulos |
+| [web/README.md](web/README.md) | Guía de desarrollo del frontend |
+| [docs/TODO.md](docs/TODO.md) | Backlog de funcionalidades futuras y pendientes |
 
-### Admin User Initialization
+## Configuración principal
 
-Nodum is an administrative platform. Admin credentials must be configured via environment variables before starting the backend.
+Las variables se definen en `.env` (ver [.env.example](.env.example)):
 
-**Required Environment Variables:**
+| Variable | Propósito |
+|---|---|
+| `POSTGRES_PASSWORD` | Contraseña de PostgreSQL |
+| `NODUM_ADMIN_*` | Credenciales del administrador inicial |
+| `JWT_SECRET` | Secreto HS512 para firmar JWT (≥ 64 bytes) |
+| `NODUM_MODULE_SERVICE_TOKEN` | Token compartido backend ↔ módulos remotos |
+| `NODUM_INFRASTRUCTURE_AGENT_TOKEN` | Token del agente Docker |
+| `NODUM_GATEWAY_ALLOWED_HOSTS` | Allowlist de hosts del Gateway (anti-SSRF) |
+| `NODUM_KAFKA_BROKERS` | Lista de brokers Kafka separados por comas |
 
-```bash
-NODUM_ADMIN_USERNAME=admin          # Admin username
-NODUM_ADMIN_PASSWORD=your_password   # Admin password (required)
-NODUM_ADMIN_EMAIL=admin@nodum.local  # Admin email
-SPRING_DATASOURCE_PASSWORD=...       # Password for the platform PostgreSQL database
-JWT_SECRET=...                       # Random secret of at least 64 bytes for HS512
-```
+## Seguridad
 
-**Important:**
-- The admin user is created on first startup only; changing these environment variables later does not rotate the saved password
-- Password is stored as a BCrypt hash in the database
-- `JWT_SECRET` must be a random value of at least 64 bytes for HS512
-- The committed `.env.example` contains local development values; replace them before sharing the environment
-- Docker Compose reads the root `.env` file; local `mvn spring-boot:run` requires the variables in the current shell
+- El panel requiere autenticación JWT; no existe registro público ni modo sin auth.
+- Solo `infrastructure-agent` monta `/var/run/docker.sock`; ni `back` ni los módulos tienen acceso directo.
+- El Gateway valida hosts contra un allowlist explícito y rechaza por defecto destinos loopback/privados (anti-SSRF).
+- Las shells remotas corren sin privilegios, sin capabilities y con límites de CPU/memoria/procesos.
+- El stack local usa protocolos plaintext y está pensado para una máquina confiable, **no** para exposición directa a internet.
 
-### Frontend Authentication
+---
 
-The panel always requires authentication. Sign in with the administrator credentials configured for the backend. The JWT is held by the browser and sent to protected API routes. There is no public registration, country-based access control, or unauthenticated panel mode.
+<div align="center">
 
-### API Documentation
+Hecho con ❤️ por la comunidad
 
-Once the backend is running, access OpenAPI documentation at:
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- OpenAPI JSON: http://localhost:8080/api-docs
-
-## Architecture
-
-Nodum is organized into three layers:
-
-1. **Control Plane**: Administrative core (authentication, configuration, versioning)
-2. **Execution Plane**: Runtime execution of user-defined systems
-3. **Resource Layer**: External resource management (databases, brokers, containers)
-
-See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation.
-
-## Current Implementation
-
-The repository is an early Control Plane prototype. It includes administrator login, project CRUD, a trusted in-process module SPI, project module instances with persisted configuration/lifecycle, Kafka producer/consumer actions, an allowlisted HTTP Gateway proxy action, JSON contract metadata, backend health, and a browser HTTP request tool. Providers run inside the backend process; there is no runtime isolation, RabbitMQ, public Gateway ingress, dynamic API generation, or production secret manager yet. See [the module provider guide](docs/modules.md). Architectural documents describe target direction as well as the current module phase; they are not claims of isolation guarantees.
-
-The backend requires explicit administrator and JWT secrets and protects project, module, and contract endpoints with JWT authentication. The local Compose stack uses plaintext development services and is intended for a trusted machine, not direct internet exposure.
+</div>

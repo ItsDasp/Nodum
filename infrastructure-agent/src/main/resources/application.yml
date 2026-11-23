@@ -1,0 +1,12 @@
+server:
+  port: 8090
+
+nodum:
+  docker:
+    network: nodum-network
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

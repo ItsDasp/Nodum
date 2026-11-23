@@ -22,11 +22,21 @@ spring:
 
 nodum:
   admin:
-    username: ${NODUM_ADMIN_USERNAME:admin}
-    password: ${NODUM_ADMIN_PASSWORD:}
-    email: ${NODUM_ADMIN_EMAIL:admin@nodum.local}
+    username: ${NODUM_ADMIN_USERNAME}
+    password: ${NODUM_ADMIN_PASSWORD}
+    email: ${NODUM_ADMIN_EMAIL}
   gateway:
     allowed-hosts: ${NODUM_GATEWAY_ALLOWED_HOSTS:}
+    allow-private-addresses: ${NODUM_GATEWAY_ALLOW_PRIVATE_ADDRESSES:false}
+    remote-url: ${NODUM_GATEWAY_REMOTE_URL:}
+    remote-token: ${NODUM_MODULE_SERVICE_TOKEN:}
+  infrastructure:
+    agent-url: ${NODUM_INFRASTRUCTURE_AGENT_URL:}
+    agent-token: ${NODUM_INFRASTRUCTURE_AGENT_TOKEN:}
+  kafka:
+    remote-url: ${NODUM_KAFKA_REMOTE_URL:}
+    remote-token: ${NODUM_KAFKA_REMOTE_TOKEN:}
+    brokers: ${NODUM_KAFKA_BROKERS:kafka:9092}
 
 jwt:
   secret: ${JWT_SECRET}

@@ -6,6 +6,7 @@ import com.nodum.modules.spi.ModuleInstanceContext;
 import com.nodum.modules.spi.ModulePlugin;
 import com.nodum.modules.spi.ModuleRegistry;
 import com.nodum.modules.spi.ModuleValidation;
+import com.nodum.modules.runtime.RemoteModuleClient;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -40,16 +41,24 @@ public class ModuleLifecycleService {
         if ("RUNNING".equals(module.getLifecycleState())
                 && provider.health(context(module)).state() == ModuleHealth.State.RUNNING) return module;
 
+        module.setDesiredState("RUNNING");
+        module.setObservedState("STARTING");
         module.setLifecycleState("STARTING");
         module.setLifecycleError(null);
+        module.setRuntimeError(null);
         moduleRepository.save(module);
         try {
             provider.start(context(module), module.getConfigurationJson());
+            module.setObservedState("RUNNING");
             module.setLifecycleState("RUNNING");
+            module.setLastObservedAt(java.time.LocalDateTime.now());
         } catch (RuntimeException failure) {
             try { provider.stop(context(module)); } catch (RuntimeException ignored) { }
+            module.setObservedState("ERROR");
             module.setLifecycleState("ERROR");
-            module.setLifecycleError("Module failed to start. Check provider logs and configuration.");
+            module.setLifecycleError("No se pudo iniciar el módulo. Revisa su configuración y la disponibilidad del proveedor.");
+            module.setRuntimeError(failure instanceof RemoteModuleClient.RemoteModuleException
+                    ? failure.getMessage() : null);
         }
         return moduleRepository.save(module);
     }
@@ -64,11 +73,17 @@ public class ModuleLifecycleService {
         ModulePlugin provider = requireProvider(module);
         try {
             provider.stop(context(module));
+            module.setDesiredState("STOPPED");
+            module.setObservedState("STOPPED");
             module.setLifecycleState("STOPPED");
+            module.setRuntimeError(null);
             module.setLifecycleError(null);
         } catch (RuntimeException failure) {
+            module.setObservedState("ERROR");
             module.setLifecycleState("ERROR");
-            module.setLifecycleError("Module failed to stop. Check provider logs.");
+            module.setLifecycleError("No se pudo detener el módulo. Revisa los registros del proveedor.");
+            module.setRuntimeError(failure instanceof RemoteModuleClient.RemoteModuleException
+                    ? failure.getMessage() : null);
         }
         return moduleRepository.save(module);
     }
@@ -79,7 +94,7 @@ public class ModuleLifecycleService {
 
     public JsonNode execute(Module module, String action, JsonNode input) {
         if (!"RUNNING".equals(module.getLifecycleState())) {
-            throw new IllegalStateException("Start the module before invoking its actions");
+            throw new IllegalStateException("Inicia el módulo antes de ejecutar sus acciones.");
         }
         return requireProvider(module).execute(context(module), action, input);
     }
@@ -100,7 +115,7 @@ public class ModuleLifecycleService {
                 provider.start(context(module), module.getConfigurationJson());
             } catch (RuntimeException failure) {
                 module.setLifecycleState("ERROR");
-                module.setLifecycleError("Module could not be restored after restart. Review its provider and configuration.");
+                module.setLifecycleError("No se pudo restaurar el módulo tras reiniciar Nodum. Revisa su proveedor y configuración.");
                 moduleRepository.save(module);
             }
         }

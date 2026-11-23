@@ -1,32 +1,51 @@
-# React + TypeScript + Vite
+# Panel web de Nodum
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Frontend del panel de administración de Nodum, construido con **React + TypeScript + Vite**.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React + TypeScript
+- Vite (dev server y build)
+- Tailwind CSS
+- React Router
+- TanStack Query
+- xterm.js (terminal remota por WebSocket)
 
-## React Compiler
+## Desarrollo
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+La app queda disponible en http://localhost:5173 y consume la API en `http://localhost:8080/api/v1` (sobreescribible con `VITE_API_BASE_URL`).
+
+## Build
+
+```bash
+npm run build   # genera dist/
+npm run lint    # oxlint
+```
+
+## Estructura
+
+```text
+src/
+├── api/         # Cliente HTTP y endpoints tipados
+├── app/         # Configuración de la aplicación
+├── components/  # Componentes compartidos (Layout, etc.)
+├── features/    # auth, dashboard, projects, modules,
+│                # contracts, testing, operations
+├── hooks/       # Hooks personalizados
+├── lib/         # Utilidades (tema, etc.)
+├── routes/      # Definición de rutas
+└── types/       # Tipos TypeScript
+```
+
+## Autenticación
+
+El panel requiere login con las credenciales del administrador. El JWT se guarda en `localStorage` (`nodum-token`) y se envía como `Authorization: Bearer` a las rutas protegidas del API.
+
+## Temas
+
+Soporta tema claro/oscuro con persistencia en `localStorage` (`nodum-theme`); el oscuro es el predeterminado.

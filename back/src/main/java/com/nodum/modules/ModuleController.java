@@ -8,10 +8,14 @@ import com.nodum.identity.User;
 import com.nodum.identity.UserRepository;
 import com.nodum.projects.Project;
 import com.nodum.projects.ProjectRepository;
+import com.nodum.modules.runtime.InfrastructureAgentClient;
+import com.nodum.modules.runtime.ShellSessionTickets;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -30,13 +34,17 @@ public class ModuleController {
     private final ProjectRepository projectRepository;
     private final ModuleRegistry moduleRegistry;
     private final ModuleLifecycleService lifecycleService;
+    private final InfrastructureAgentClient infrastructureAgent;
+    private final ShellSessionTickets shellTickets;
     
-    public ModuleController(ModuleRepository moduleRepository, UserRepository userRepository, ProjectRepository projectRepository, ModuleRegistry moduleRegistry, ModuleLifecycleService lifecycleService) {
+    public ModuleController(ModuleRepository moduleRepository, UserRepository userRepository, ProjectRepository projectRepository, ModuleRegistry moduleRegistry, ModuleLifecycleService lifecycleService, InfrastructureAgentClient infrastructureAgent, ShellSessionTickets shellTickets) {
         this.moduleRepository = moduleRepository;
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.moduleRegistry = moduleRegistry;
         this.lifecycleService = lifecycleService;
+        this.infrastructureAgent = infrastructureAgent;
+        this.shellTickets = shellTickets;
     }
     
     private Optional<User> getCurrentUser() {
@@ -133,6 +141,56 @@ public class ModuleController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/{id}/logs")
+    public ResponseEntity<InfrastructureAgentClient.RuntimeCommandResult> getModuleLogs(
+            @PathVariable UUID projectId, @PathVariable UUID id,
+            @RequestParam(defaultValue = "200") int tail) {
+        Module module = ownedModule(projectId, id).orElse(null);
+        if (module == null) return ResponseEntity.notFound().build();
+        requireManagedRuntime(module);
+        if (!"linux-shell".equals(module.getProviderId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "La consola está disponible en módulos Shell Linux.");
+        }
+        return ResponseEntity.ok(infrastructureAgent.logs(module.getProviderId(), module.getId(), tail));
+    }
+
+    @PostMapping("/{id}/shell")
+    public ResponseEntity<InfrastructureAgentClient.RuntimeCommandResult> executeShellCommand(
+            @PathVariable UUID projectId, @PathVariable UUID id,
+            @Valid @RequestBody ShellCommandRequest request) {
+        Module module = ownedModule(projectId, id).orElse(null);
+        if (module == null) return ResponseEntity.notFound().build();
+        requireManagedRuntime(module);
+        if (!"RUNNING".equals(module.getLifecycleState())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Inicia el módulo antes de usar la consola remota.");
+        }
+        return ResponseEntity.ok(infrastructureAgent.execute(module.getProviderId(), module.getId(), request.command(), request.workingDirectory()));
+    }
+
+    @PostMapping("/{id}/shell/session")
+    public ResponseEntity<?> createShellSession(@PathVariable UUID projectId, @PathVariable UUID id) {
+        Module module = ownedModule(projectId, id).orElse(null);
+        if (module == null) return ResponseEntity.notFound().build();
+        if (!"linux-shell".equals(module.getProviderId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El terminal interactivo requiere un módulo Shell Linux.");
+        }
+        if (!"RUNNING".equals(module.getLifecycleState())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Inicia el módulo Shell Linux antes de abrir el terminal.");
+        }
+        if (!infrastructureAgent.enabled()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                "El agente de infraestructura no está disponible.");
+        return ResponseEntity.ok(java.util.Map.of("ticket", shellTickets.issue(projectId, id)));
+    }
+
+    private void requireManagedRuntime(Module module) {
+        if (!List.of("http-gateway", "kafka-messaging", "linux-shell").contains(module.getProviderId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Los registros y la consola remota requieren un proveedor ejecutado en contenedor.");
+        }
+        if (!infrastructureAgent.enabled()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "El agente de infraestructura no está disponible.");
+        }
+    }
+
     private Optional<Module> ownedModule(UUID projectId, UUID id) {
         Optional<User> user = getCurrentUser();
         if (user.isEmpty()) return Optional.empty();
@@ -223,4 +281,5 @@ public class ModuleController {
                                @Size(max = 1000) String description,
                                @Pattern(regexp = "/[A-Za-z0-9/_{}-]*") String basePath,
                                @Size(max = 50) String version) {}
+    record ShellCommandRequest(@NotBlank @Size(max = 8192) String command, @Size(max = 4096) String workingDirectory) {}
 }

@@ -57,6 +57,27 @@ public class Module {
 
     @Column(name = "lifecycle_error", columnDefinition = "TEXT")
     private String lifecycleError;
+
+    @Column(name = "desired_state", nullable = false, length = 30)
+    private String desiredState = "STOPPED";
+
+    @Column(name = "observed_state", nullable = false, length = 30)
+    private String observedState = "UNKNOWN";
+
+    @Column(name = "runtime_id", length = 255)
+    private String runtimeId;
+
+    @Column(name = "runtime_provider", length = 100)
+    private String runtimeProvider;
+
+    @Column(name = "runtime_error", columnDefinition = "TEXT")
+    private String runtimeError;
+
+    @Column(name = "last_observed_at")
+    private LocalDateTime lastObservedAt;
+
+    @Column(name = "restart_count", nullable = false)
+    private Integer restartCount = 0;
     
     public Module() {
         this.createdAt = LocalDateTime.now();
@@ -143,6 +164,20 @@ public class Module {
     public void setConfigurationJson(String configurationJson) { this.configurationJson = configurationJson; }
     public String getLifecycleState() { return lifecycleState; }
     public void setLifecycleState(String lifecycleState) { this.lifecycleState = lifecycleState; }
+    public String getDesiredState() { return desiredState; }
+    public void setDesiredState(String desiredState) { this.desiredState = desiredState; }
+    public String getObservedState() { return observedState; }
+    public void setObservedState(String observedState) { this.observedState = observedState; }
+    public String getRuntimeId() { return runtimeId; }
+    public void setRuntimeId(String runtimeId) { this.runtimeId = runtimeId; }
+    public String getRuntimeProvider() { return runtimeProvider; }
+    public void setRuntimeProvider(String runtimeProvider) { this.runtimeProvider = runtimeProvider; }
+    public String getRuntimeError() { return runtimeError; }
+    public void setRuntimeError(String runtimeError) { this.runtimeError = runtimeError; }
+    public LocalDateTime getLastObservedAt() { return lastObservedAt; }
+    public void setLastObservedAt(LocalDateTime lastObservedAt) { this.lastObservedAt = lastObservedAt; }
+    public Integer getRestartCount() { return restartCount; }
+    public void setRestartCount(Integer restartCount) { this.restartCount = restartCount; }
     public String getLifecycleError() { return lifecycleError; }
     public void setLifecycleError(String lifecycleError) { this.lifecycleError = lifecycleError; }
     
